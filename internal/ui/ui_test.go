@@ -16,9 +16,13 @@ func TestMemoryHUD(t *testing.T) {
 		t.Fatal(h.Status)
 	}
 	h.ShowSuggestion(ui.Suggestion{Question: "q", Answer: "a"})
+	h.AppendCaption("hello world")
 	h.PushAudio([]int16{1, 2})
 	if h.Last.Answer != "a" {
 		t.Fatal(h.Last)
+	}
+	if len(h.Captions) != 1 || h.Captions[0] != "hello world" {
+		t.Fatalf("captions: %+v", h.Captions)
 	}
 	h.Hide()
 	if !h.Hidden {
@@ -50,6 +54,7 @@ func TestFyneHUD(t *testing.T) {
 	}
 	h.SetStatus("listening")
 	h.PushAudio([]int16{100, -100, 200})
+	h.AppendCaption("Привет всем")
 	h.ShowSuggestion(ui.Suggestion{Question: "Q?", Answer: "A"})
 	test.Tap(h.HideBtn)
 	h.Hide()

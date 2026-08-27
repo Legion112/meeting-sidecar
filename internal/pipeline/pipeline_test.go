@@ -110,6 +110,9 @@ func TestPipelineQuestionPath(t *testing.T) {
 	if hud.Last.Answer != "Y" {
 		t.Fatalf("hud %+v", hud.Last)
 	}
+	if len(hud.Captions) != 1 || hud.Captions[0] != "What is X?" {
+		t.Fatalf("captions: %+v", hud.Captions)
+	}
 	if hud.AudioPushes == 0 {
 		t.Fatal("expected audio waveform pushes")
 	}
@@ -139,6 +142,9 @@ func TestPipelineSkipsNonQuestion(t *testing.T) {
 	_ = r.Run(ctx)
 	if c.n != 0 {
 		t.Fatal("llm should not run")
+	}
+	if len(hud.Captions) != 1 || hud.Captions[0] != "okay" {
+		t.Fatalf("captions: %+v", hud.Captions)
 	}
 }
 

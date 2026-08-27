@@ -112,6 +112,7 @@ func (r *Runner) handleUtterance(ctx context.Context, pcm []int16) error {
 	if d.Logger.Enabled(ctx, slog.LevelDebug) {
 		d.Logger.Debug("stt transcript", "text", text)
 	}
+	d.HUD.AppendCaption(text)
 	d.HUD.SetStatus("detecting")
 	ok, err := d.Gate.IsQuestion(ctx, text)
 	if err != nil {

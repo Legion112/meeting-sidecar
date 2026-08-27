@@ -2,6 +2,7 @@ package ui
 
 import (
 	"fmt"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"time"
@@ -19,6 +20,8 @@ type FyneHUD struct {
 	waveform  fyne.CanvasObject
 	waveBuf   waveBuffer
 	waveAt    atomic.Int64
+	captions  *widget.Entry
+	captionLines []string
 	question  *widget.Label
 	answer    *widget.Label
 	HideBtn   *widget.Button
@@ -56,10 +59,16 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 	question.Wrapping = fyne.TextWrapWord
 	answer := widget.NewLabel("")
 	answer.Wrapping = fyne.TextWrapWord
+	captions := widget.NewMultiLineEntry()
+	captions.Disable()
+	captions.SetPlaceHolder("Transcript appears here…")
+	captionScroll := container.NewScroll(captions)
+	captionScroll.SetMinSize(fyne.NewSize(380, 140))
 	h := &FyneHUD{
 		app:       a,
 		win:       w,
 		status:    status,
+		captions:  captions,
 		question:  question,
 		answer:    answer,
 		display:   opts.Display,
@@ -74,13 +83,16 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 		widget.NewLabel("Audio level"),
 		wave,
 		widget.NewSeparator(),
-		widget.NewLabel("Question"),
+		widget.NewLabel("Transcript"),
+		captionScroll,
+		widget.NewSeparator(),
+		widget.NewLabel("Last question"),
 		question,
 		widget.NewLabel("Suggested answer"),
 		answer,
 		h.HideBtn,
 	))
-	w.Resize(fyne.NewSize(420, 400))
+	w.Resize(fyne.NewSize(420, 520))
 	return h
 }
 
@@ -124,6 +136,33 @@ func (h *FyneHUD) SetStatus(status string) {
 			return
 		}
 		h.status.SetText(status)
+		h.win.Show()
+	})
+}
+
+// AppendCaption implements HUD.
+func (h *FyneHUD) AppendCaption(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		return
+	}
+	h.mu.Unlock()
+	fyne.Do(func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.closed || h.captions == nil {
+			return
+		}
+		h.captionLines = append(h.captionLines, text)
+		if len(h.captionLines) > maxCaptionLines {
+			h.captionLines = h.captionLines[len(h.captionLines)-maxCaptionLines:]
+		}
+		h.captions.SetText(strings.Join(h.captionLines, "\n"))
 		h.win.Show()
 	})
 }

@@ -4,10 +4,13 @@ import (
 	"sync"
 )
 
+const maxCaptionLines = 200
+
 // MemoryHUD is a testable in-memory HUD.
 type MemoryHUD struct {
 	mu          sync.Mutex
 	Status      string
+	Captions    []string
 	Last        Suggestion
 	Hidden      bool
 	Closed      bool
@@ -27,6 +30,17 @@ func (h *MemoryHUD) SetStatus(status string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	h.Status = status
+	h.Hidden = false
+}
+
+// AppendCaption implements HUD.
+func (h *MemoryHUD) AppendCaption(text string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if text == "" {
+		return
+	}
+	h.Captions = append(h.Captions, text)
 	h.Hidden = false
 }
 

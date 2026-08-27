@@ -1,6 +1,6 @@
 # meeting-sidecar
 
-Private meeting assistant for Linux (GNOME/X11 + PipeWire). It listens to **meeting playback** (what your speakers/headphones play), transcribes speech with **local Whisper**, asks a **small local model** whether the utterance is a question, and only then requests a short suggested answer from **ChatGPT** (or Ollama). Suggestions appear in a separate always-on-top HUD you can keep on a non-shared monitor.
+Private meeting assistant for Linux (GNOME/X11 + PipeWire). It listens to **meeting playback** (what your speakers/headphones play), transcribes speech with **local Whisper**, shows a **rolling transcript** in the HUD, asks a **small local model** whether the utterance is a question, and only then requests a short suggested answer from **ChatGPT** (or Ollama).
 
 **Repository:** `git@github.com:Legion112/meeting-sidecar.git`  
 **Module:** `github.com/Legion112/meeting-sidecar`  
