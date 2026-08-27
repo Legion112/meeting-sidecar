@@ -123,22 +123,12 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ui: %v\n", err)
 		os.Exit(1)
 	}
-	hud.BindMicCapture(cfg.MicEnabled(), func(on bool) {
-		if err := micMixer.SetMicEnabled(on); err != nil {
-			slog.Warn("microphone toggle", "enabled", on, "err", err)
-			hud.SetStatus("microphone error: " + err.Error())
-		} else if on {
-			slog.Info("microphone capture enabled", "source", micSource)
-			hud.SetStatus("listening (playback + mic)")
-		} else {
-			slog.Info("microphone capture disabled")
-			hud.SetStatus("listening")
-		}
-	})
 
 	if err := app.Run(ctx, app.Deps{
 		Config:      cfg,
 		Source:      micMixer,
+		MicMixer:    micMixer,
+		MicSource:   micSource,
 		Transcriber: tr,
 		Gate:        gate,
 		Completer:   completer,

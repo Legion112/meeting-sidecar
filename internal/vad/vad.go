@@ -12,14 +12,17 @@ type Utterance struct {
 	PCM []int16
 }
 
+// DefaultMaxSpeechSec is the maximum continuous speech segment sent to STT.
+const DefaultMaxSpeechSec = 10
+
 // Config controls energy VAD behaviour.
 type Config struct {
-	SampleRate       int
-	FrameMs          int
-	EnergyThreshold  float64
-	HangoverFrames   int
-	MinSpeechFrames  int
-	MaxSpeechFrames  int
+	SampleRate      int
+	FrameMs         int
+	EnergyThreshold float64
+	HangoverFrames  int
+	MinSpeechFrames int
+	MaxSpeechFrames int
 }
 
 // DefaultConfig returns sensible 16 kHz / 20 ms defaults.
@@ -31,9 +34,9 @@ func DefaultConfig(sampleRate int) Config {
 		SampleRate:      sampleRate,
 		FrameMs:         20,
 		EnergyThreshold: 500,
-		HangoverFrames:  15, // 300 ms
-		MinSpeechFrames: 5,  // 100 ms
-		MaxSpeechFrames: sampleRate / 20 * 15, // ~15 s
+		HangoverFrames:  15,                                    // 300 ms
+		MinSpeechFrames: 5,                                     // 100 ms
+		MaxSpeechFrames: sampleRate / 20 * DefaultMaxSpeechSec, // 10 s
 	}
 }
 
@@ -66,7 +69,7 @@ func NewSegmenter(cfg Config) *Segmenter {
 		cfg.MinSpeechFrames = 5
 	}
 	if cfg.MaxSpeechFrames <= 0 {
-		cfg.MaxSpeechFrames = cfg.SampleRate / 20 * 15
+		cfg.MaxSpeechFrames = cfg.SampleRate / 20 * DefaultMaxSpeechSec
 	}
 	fs := cfg.SampleRate * cfg.FrameMs / 1000
 	if fs <= 0 {

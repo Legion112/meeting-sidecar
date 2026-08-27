@@ -24,6 +24,8 @@ import (
 type Deps struct {
 	Config      config.Config
 	Source      audio.PCMSource
+	MicMixer    *audio.MicMixer
+	MicSource   string
 	Transcriber stt.Transcriber
 	Gate        detect.Gate
 	Completer   llm.Completer
@@ -57,6 +59,9 @@ func Run(ctx context.Context, d Deps) error {
 
 	cfg := d.Config
 	seg := vad.NewSegmenter(cfg.Audio.SegmenterConfig())
+	if d.MicMixer != nil && d.MicMixer.MicEnabled() {
+		seg = vad.NewSegmenter(cfg.Audio.SegmenterConfigMic())
+	}
 	runner, _ := pipeline.New(pipeline.Deps{
 		Source:       d.Source,
 		Segmenter:    seg,
@@ -68,6 +73,27 @@ func Run(ctx context.Context, d Deps) error {
 		SystemPrompt: cfg.Assistant.SystemPrompt,
 		Logger:       d.Logger,
 	})
+
+	if d.MicMixer != nil {
+		micMixer := d.MicMixer
+		micSource := d.MicSource
+		d.HUD.BindMicCapture(cfg.MicEnabled(), func(on bool) {
+			if err := micMixer.SetMicEnabled(on); err != nil {
+				d.Logger.Warn("microphone toggle", "enabled", on, "err", err)
+				d.HUD.SetStatus("microphone error: " + err.Error())
+				return
+			}
+			if on {
+				runner.SetSegmenter(vad.NewSegmenter(cfg.Audio.SegmenterConfigMic()))
+				d.Logger.Info("microphone capture enabled", "source", micSource)
+				d.HUD.SetStatus("listening (playback + mic)")
+			} else {
+				runner.SetSegmenter(vad.NewSegmenter(cfg.Audio.SegmenterConfig()))
+				d.Logger.Info("microphone capture disabled")
+				d.HUD.SetStatus("listening")
+			}
+		})
+	}
 
 	runCtx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()

@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"log/slog"
+	"sync"
 
 	"github.com/Legion112/meeting-sidecar/internal/audio"
 	"github.com/Legion112/meeting-sidecar/internal/detect"
@@ -29,6 +30,7 @@ type Deps struct {
 // Runner executes capture → VAD → STT → gate → LLM → HUD.
 type Runner struct {
 	deps Deps
+	mu   sync.Mutex
 }
 
 // New creates a Runner.
@@ -60,11 +62,27 @@ func New(d Deps) (*Runner, error) {
 	return &Runner{deps: d}, nil
 }
 
+// SetSegmenter replaces the VAD segmenter (e.g. when toggling microphone capture).
+func (r *Runner) SetSegmenter(seg *vad.Segmenter) {
+	if seg == nil {
+		return
+	}
+	r.mu.Lock()
+	r.deps.Segmenter = seg
+	r.mu.Unlock()
+}
+
+func (r *Runner) segmenter() *vad.Segmenter {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	return r.deps.Segmenter
+}
+
 // Run reads PCM until ctx is cancelled.
 func (r *Runner) Run(ctx context.Context) error {
 	d := r.deps
 	d.HUD.SetStatus("listening")
-	frame := make([]int16, d.Segmenter.FrameSize()*16)
+	frame := make([]int16, r.segmenter().FrameSize()*16)
 	for {
 		n, err := d.Source.Read(ctx, frame)
 		if err != nil {
@@ -79,14 +97,14 @@ func (r *Runner) Run(ctx context.Context) error {
 			continue
 		}
 		d.HUD.PushAudio(frame[:n])
-		for _, u := range d.Segmenter.Push(frame[:n]) {
+		for _, u := range r.segmenter().Push(frame[:n]) {
 			r.handleOrWarn(ctx, u.PCM)
 		}
 	}
 }
 
 func (r *Runner) flush(ctx context.Context) {
-	for _, u := range r.deps.Segmenter.Flush() {
+	for _, u := range r.segmenter().Flush() {
 		r.handleOrWarn(ctx, u.PCM)
 	}
 }

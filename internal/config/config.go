@@ -35,6 +35,7 @@ type AudioConfig struct {
 	MicrophoneSource string    `yaml:"microphone_source"`
 	SampleRate       int       `yaml:"sample_rate"`
 	VAD              VADConfig `yaml:"vad"`
+	VADMic           VADConfig `yaml:"vad_mic"`
 }
 
 // VADConfig overrides energy VAD defaults; zero values keep built-in defaults.
@@ -75,8 +76,8 @@ type OllamaConfig struct {
 }
 
 type UIConfig struct {
-	Display      int  `yaml:"display"`
-	AlwaysOnTop  bool `yaml:"always_on_top"`
+	Display     int  `yaml:"display"`
+	AlwaysOnTop bool `yaml:"always_on_top"`
 }
 
 type AssistantConfig struct {
@@ -222,8 +223,36 @@ func IsMonitorName(name string) bool {
 
 // SegmenterConfig builds a VAD segmenter config from audio settings.
 func (a AudioConfig) SegmenterConfig() vad.Config {
-	cfg := vad.DefaultConfig(a.SampleRate)
-	v := a.VAD
+	return applyVADOverrides(vad.DefaultConfig(a.SampleRate), a.SampleRate, a.VAD)
+}
+
+// SegmenterConfigMic returns VAD settings tuned for microphone capture.
+func (a AudioConfig) SegmenterConfigMic() vad.Config {
+	cfg := a.SegmenterConfig()
+	mic := a.VADMic
+	if mic.EnergyThreshold <= 0 {
+		mic.EnergyThreshold = 250
+	}
+	if mic.HangoverMs <= 0 {
+		mic.HangoverMs = 800
+	}
+	if mic.MinSpeechMs <= 0 {
+		mic.MinSpeechMs = 400
+	}
+	if mic.MaxSpeechSec <= 0 {
+		if a.VAD.MaxSpeechSec > 0 {
+			mic.MaxSpeechSec = a.VAD.MaxSpeechSec
+		} else {
+			mic.MaxSpeechSec = vad.DefaultMaxSpeechSec
+		}
+	}
+	return applyVADOverrides(cfg, a.SampleRate, mic)
+}
+
+func applyVADOverrides(cfg vad.Config, sampleRate int, v VADConfig) vad.Config {
+	if sampleRate <= 0 {
+		sampleRate = 16000
+	}
 	if v.EnergyThreshold > 0 {
 		cfg.EnergyThreshold = v.EnergyThreshold
 	}
@@ -235,7 +264,7 @@ func (a AudioConfig) SegmenterConfig() vad.Config {
 		cfg.MinSpeechFrames = (v.MinSpeechMs + frameMs - 1) / frameMs
 	}
 	if v.MaxSpeechSec > 0 {
-		cfg.MaxSpeechFrames = a.SampleRate * v.MaxSpeechSec / frameMs
+		cfg.MaxSpeechFrames = sampleRate * v.MaxSpeechSec / frameMs
 	}
 	return cfg
 }

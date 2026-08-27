@@ -6,6 +6,7 @@ import (
 	"testing"
 
 	"github.com/Legion112/meeting-sidecar/internal/config"
+	"github.com/Legion112/meeting-sidecar/internal/vad"
 )
 
 func TestResolveSTTModelPath(t *testing.T) {
@@ -82,7 +83,7 @@ func TestSTTLanguage(t *testing.T) {
 func TestSegmenterConfig(t *testing.T) {
 	cfg := config.Default()
 	base := cfg.Audio.SegmenterConfig()
-	if base.HangoverFrames != 15 || base.MaxSpeechFrames != cfg.Audio.SampleRate/20*15 {
+	if base.HangoverFrames != 15 || base.MaxSpeechFrames != cfg.Audio.SampleRate/20*vad.DefaultMaxSpeechSec {
 		t.Fatalf("defaults changed: %+v", base)
 	}
 
@@ -104,5 +105,20 @@ func TestSegmenterConfig(t *testing.T) {
 	}
 	if vad.MaxSpeechFrames != 16000*30/20 {
 		t.Fatalf("max speech frames: %d", vad.MaxSpeechFrames)
+	}
+}
+
+func TestSegmenterConfigMic(t *testing.T) {
+	cfg := config.Default()
+	cfg.Audio.VAD.MaxSpeechSec = 10
+	mic := cfg.Audio.SegmenterConfigMic()
+	if mic.EnergyThreshold != 250 {
+		t.Fatalf("threshold: %v", mic.EnergyThreshold)
+	}
+	if mic.HangoverFrames != 40 {
+		t.Fatalf("hangover: %d", mic.HangoverFrames)
+	}
+	if mic.MinSpeechFrames != 20 {
+		t.Fatalf("min speech: %d", mic.MinSpeechFrames)
 	}
 }

@@ -117,6 +117,7 @@ Important fields:
 - `stt.model_path`: legacy explicit path when `stt.model` is empty
 - `stt.language`: Whisper language code (`ru`, `en`, `auto`); when `auto`, falls back to `assistant.language`
 - `audio.vad`: optional energy-VAD overrides (`energy_threshold`, `hangover_ms`, `min_speech_ms`, `max_speech_sec`)
+- `audio.vad_mic`: VAD overrides applied while **Capture microphone** is checked (longer hangover, higher min speech — keeps full questions together)
 - `detect.ollama.model`: small local classifier
 - `llm.provider`: `openai` (default) or `ollama`
 - `llm.openai.model`: default `gpt-5.6-luna`
@@ -154,7 +155,7 @@ stt:
 audio:
   vad:
     hangover_ms: 500
-    max_speech_sec: 30
+    max_speech_sec: 10
 ```
 
 If you already have models under `~/github/transcription/models/`, meeting-sidecar finds them automatically — no copy needed. On startup, confirm the log line:

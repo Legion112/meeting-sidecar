@@ -7,12 +7,17 @@ audio:
   # Empty = default Pulse input source; or an explicit source id (not .monitor).
   microphone_source: ""
   sample_rate: 16000
-  # Optional VAD overrides (omit to keep defaults: threshold 500, hangover 300 ms, min 100 ms, max 15 s).
+  # Optional VAD overrides (omit to keep defaults: threshold 500, hangover 300 ms, min 100 ms, max 10 s).
   # vad:
   #   energy_threshold: 300
   #   hangover_ms: 500
   #   min_speech_ms: 250
-  #   max_speech_sec: 30
+  #   max_speech_sec: 10
+  # Softer VAD when "Capture microphone" is checked (defaults: threshold 250, hangover 800 ms, min 400 ms).
+  # vad_mic:
+  #   energy_threshold: 250
+  #   hangover_ms: 800
+  #   min_speech_ms: 400
 
 stt:
   provider: whisper
@@ -31,7 +36,7 @@ stt:
   # audio:
   #   vad:
   #     hangover_ms: 500
-  #     max_speech_sec: 30
+  #     max_speech_sec: 10
 
 detect:
   provider: ollama

@@ -6,6 +6,7 @@ import (
 	"log/slog"
 	"strings"
 	"sync"
+	"time"
 )
 
 // SourceQuerier resolves the default Pulse input source.
@@ -37,6 +38,8 @@ func ResolveMicrophone(explicit string, q SourceQuerier) (string, error) {
 }
 
 // MicMixer wraps playback capture and optionally mixes a Pulse input source (microphone).
+// When the mic is enabled a background goroutine continuously mixes playback and mic into
+// an output buffer so VAD sees aligned PCM instead of dropping mic chunks.
 type MicMixer struct {
 	base       PCMSource
 	factory    RecordFactory
@@ -47,6 +50,9 @@ type MicMixer struct {
 	mu      sync.Mutex
 	enabled bool
 	mic     *inputStream
+	out     *StreamBuffer
+	cancel  context.CancelFunc
+	mixDone chan struct{}
 }
 
 type inputStream struct {
@@ -54,7 +60,7 @@ type inputStream struct {
 	ch   chan []int16
 }
 
-// NewMicMixer wraps base playback capture. micSource is a Pulse source id (not a .monitor).
+// NewMicMixer wraps base playback capture.
 func NewMicMixer(base PCMSource, factory RecordFactory, micSource string, sampleRate int, logger *slog.Logger) (*MicMixer, error) {
 	if base == nil {
 		return nil, fmt.Errorf("mic mixer: base source is nil")
@@ -80,6 +86,7 @@ func NewMicMixer(base PCMSource, factory RecordFactory, micSource string, sample
 		micSource:  micSource,
 		sampleRate: sampleRate,
 		logger:     logger,
+		mixDone:    make(chan struct{}),
 	}, nil
 }
 
@@ -90,7 +97,7 @@ func (m *MicMixer) MicEnabled() bool {
 	return m.enabled
 }
 
-// SetMicEnabled attaches or detaches the microphone stream.
+// SetMicEnabled attaches or detaches the microphone stream and mixer.
 func (m *MicMixer) SetMicEnabled(on bool) error {
 	m.mu.Lock()
 	defer m.mu.Unlock()
@@ -101,19 +108,45 @@ func (m *MicMixer) SetMicEnabled(on bool) error {
 		if err := m.attachLocked(); err != nil {
 			return err
 		}
+		m.startMixerLocked()
 		m.enabled = true
 		return nil
 	}
+	m.stopMixerLocked()
 	m.detachLocked()
 	m.enabled = false
 	return nil
+}
+
+func (m *MicMixer) startMixerLocked() {
+	if m.cancel != nil {
+		return
+	}
+	m.out = NewStreamBuffer()
+	m.mixDone = make(chan struct{})
+	ctx, cancel := context.WithCancel(context.Background())
+	m.cancel = cancel
+	go m.runMixer(ctx)
+}
+
+func (m *MicMixer) stopMixerLocked() {
+	if m.cancel == nil {
+		return
+	}
+	m.cancel()
+	<-m.mixDone
+	m.cancel = nil
+	if m.out != nil {
+		_ = m.out.Close()
+		m.out = nil
+	}
 }
 
 func (m *MicMixer) attachLocked() error {
 	if m.mic != nil {
 		return nil
 	}
-	ch := make(chan []int16, 8)
+	ch := make(chan []int16, 32)
 	ctrl, err := m.factory(m.micSource, m.sampleRate, func(samples []int16) {
 		cp := make([]int16, len(samples))
 		copy(cp, samples)
@@ -150,32 +183,65 @@ func (m *MicMixer) detachLocked() {
 	m.logger.Info("detached microphone")
 }
 
+func (m *MicMixer) runMixer(ctx context.Context) {
+	defer close(m.mixDone)
+	frame := make([]int16, mixFrameSamples*16)
+	for {
+		select {
+		case <-ctx.Done():
+			return
+		default:
+		}
+		n, err := m.base.Read(ctx, frame)
+		if err != nil {
+			if ctx.Err() != nil {
+				return
+			}
+			continue
+		}
+		if n == 0 {
+			time.Sleep(time.Duration(mixFrameSamples) * time.Second / time.Duration(m.sampleRate))
+			continue
+		}
+		out := append([]int16(nil), frame[:n]...)
+		m.mu.Lock()
+		mic := m.mic
+		m.mu.Unlock()
+		if mic != nil {
+			for {
+				select {
+				case chunk := <-mic.ch:
+					mixAdd(out, chunk)
+				default:
+					goto push
+				}
+			}
+		}
+	push:
+		m.mu.Lock()
+		buf := m.out
+		m.mu.Unlock()
+		if buf != nil {
+			buf.Push(out)
+		}
+	}
+}
+
 // Read implements PCMSource.
 func (m *MicMixer) Read(ctx context.Context, dst []int16) (int, error) {
-	n, err := m.base.Read(ctx, dst)
-	if err != nil || n == 0 {
-		return n, err
-	}
 	m.mu.Lock()
-	mic := m.mic
+	buf := m.out
 	m.mu.Unlock()
-	if mic == nil {
-		return n, err
+	if buf != nil {
+		return buf.Read(ctx, dst)
 	}
-	var chunk []int16
-	select {
-	case chunk = <-mic.ch:
-	default:
-	}
-	if len(chunk) > 0 {
-		mixAdd(dst[:n], chunk)
-	}
-	return n, err
+	return m.base.Read(ctx, dst)
 }
 
 // Close stops microphone capture and closes the base source.
 func (m *MicMixer) Close() error {
 	m.mu.Lock()
+	m.stopMixerLocked()
 	m.detachLocked()
 	m.enabled = false
 	m.mu.Unlock()
