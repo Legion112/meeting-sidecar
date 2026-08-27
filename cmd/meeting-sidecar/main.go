@@ -9,9 +9,8 @@ import (
 	"os"
 	"strings"
 
-	"github.com/jfreymuth/pulse"
-	"github.com/jfreymuth/pulse/proto"
 	fyneapp "fyne.io/fyne/v2/app"
+	"github.com/jfreymuth/pulse"
 
 	"github.com/Legion112/meeting-sidecar/internal/app"
 	"github.com/Legion112/meeting-sidecar/internal/audio"
@@ -134,9 +133,6 @@ func pulseFactory(client *pulse.Client) audio.RecordFactory {
 			pulse.RecordMono,
 			pulse.RecordSource(src),
 			pulse.RecordMediaName("meeting-sidecar"),
-			pulse.RecordRawOption(func(o *proto.CreateRecordStream) {
-				o.SourceName = monitor
-			}),
 		)
 		if err != nil {
 			return audio.RecordControl{}, err

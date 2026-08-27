@@ -22,18 +22,19 @@ import (
 
 // Deps holds injectable runtime dependencies.
 type Deps struct {
-	Config       config.Config
-	Source       audio.PCMSource
-	Transcriber  stt.Transcriber
-	Gate         detect.Gate
-	Completer    llm.Completer
-	HUD          ui.HUD
-	Logger       *slog.Logger
-	EnsureModel  func(ctx context.Context, path string) error
-	NewEngine    func(modelPath, language string) (whisperstt.Engine, error)
+	Config      config.Config
+	Source      audio.PCMSource
+	Transcriber stt.Transcriber
+	Gate        detect.Gate
+	Completer   llm.Completer
+	HUD         ui.HUD
+	Logger      *slog.Logger
+	EnsureModel func(ctx context.Context, path string) error
+	NewEngine   func(modelPath, language string) (whisperstt.Engine, error)
 }
 
 // Run starts the meeting-sidecar pipeline until interrupted.
+// HUD.Run blocks on the calling goroutine; use the main goroutine when the HUD is Fyne.
 func Run(ctx context.Context, d Deps) error {
 	if d.Logger == nil {
 		d.Logger = slog.Default()
@@ -73,27 +74,22 @@ func Run(ctx context.Context, d Deps) error {
 
 	errCh := make(chan error, 1)
 	go func() {
-		errCh <- runner.Run(runCtx)
-	}()
-
-	uiErr := make(chan error, 1)
-	go func() {
-		uiErr <- d.HUD.Run()
-	}()
-
-	select {
-	case err := <-errCh:
+		err := runner.Run(runCtx)
 		_ = d.HUD.Close()
-		<-uiErr
-		if err == context.Canceled || err == context.DeadlineExceeded {
-			return nil
-		}
-		return err
-	case err := <-uiErr:
+		errCh <- err
+	}()
+
+	if err := d.HUD.Run(); err != nil {
 		cancel()
 		<-errCh
 		return err
 	}
+	cancel()
+	err := <-errCh
+	if err == context.Canceled || err == context.DeadlineExceeded {
+		return nil
+	}
+	return err
 }
 
 // NewCompleter builds the configured answer Completer.

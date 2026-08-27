@@ -46,7 +46,7 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 		title = "meeting-sidecar"
 	}
 	w := a.NewWindow(title)
-	status := widget.NewLabel("starting…")
+	status := widget.NewLabel(fmt.Sprintf("display %d — place on non-shared monitor", opts.Display))
 	question := widget.NewLabel("")
 	question.Wrapping = fyne.TextWrapWord
 	answer := widget.NewLabel("")
@@ -78,40 +78,63 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 // SetStatus implements HUD.
 func (h *FyneHUD) SetStatus(status string) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.closed {
+		h.mu.Unlock()
 		return
 	}
-	h.status.SetText(status)
-	h.win.Show()
+	h.mu.Unlock()
+	fyne.Do(func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.closed {
+			return
+		}
+		h.status.SetText(status)
+		h.win.Show()
+	})
 }
 
 // ShowSuggestion implements HUD.
 func (h *FyneHUD) ShowSuggestion(s Suggestion) {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.closed {
+		h.mu.Unlock()
 		return
 	}
-	h.question.SetText(s.Question)
-	h.answer.SetText(s.Answer)
-	h.win.Show()
-	h.win.RequestFocus()
+	h.mu.Unlock()
+	fyne.Do(func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.closed {
+			return
+		}
+		h.question.SetText(s.Question)
+		h.answer.SetText(s.Answer)
+		h.win.Show()
+		h.win.RequestFocus()
+	})
 }
 
 // Hide implements HUD.
 func (h *FyneHUD) Hide() {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.closed {
+		h.mu.Unlock()
 		return
 	}
-	h.win.Hide()
+	h.mu.Unlock()
+	fyne.Do(func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.closed {
+			return
+		}
+		h.win.Hide()
+	})
 }
 
-// Run shows the window. With a real app, blocks on the Fyne event loop until Quit.
+// Run shows the window. Blocks on the Fyne event loop until Quit (call from main goroutine).
 func (h *FyneHUD) Run() error {
-	h.placeOnDisplay()
 	h.mu.Lock()
 	h.running = true
 	h.mu.Unlock()
@@ -123,16 +146,14 @@ func (h *FyneHUD) Run() error {
 // Close quits the Fyne app.
 func (h *FyneHUD) Close() error {
 	h.mu.Lock()
-	defer h.mu.Unlock()
 	if h.closed {
+		h.mu.Unlock()
 		return nil
 	}
 	h.closed = true
-	h.app.Quit()
+	h.mu.Unlock()
+	fyne.Do(func() {
+		h.app.Quit()
+	})
 	return nil
-}
-
-func (h *FyneHUD) placeOnDisplay() {
-	h.status.SetText(fmt.Sprintf("display hint=%d (place on non-shared monitor)", h.display))
-	_ = h.alwaysTop
 }

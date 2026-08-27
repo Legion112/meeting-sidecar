@@ -139,12 +139,12 @@ func TestFactories(t *testing.T) {
 		t.Fatal("engine err")
 	}
 
-	// nil newEngine uses NewNativeEngine — fails without a real ggml model file
+	// nil newEngine uses NewNativeEngine — inject a failing engine so the test does not depend on local model files.
 	_, err = app.NewWhisperTranscriber(context.Background(), config.Default(),
-		func(ctx context.Context, path string) error { return nil },
-		nil,
+		func(context.Context, string) error { return nil },
+		func(string, string) (whisperstt.Engine, error) { return nil, errors.New("no model") },
 	)
 	if err == nil {
-		t.Fatal("expected native engine failure without model")
+		t.Fatal("expected engine failure")
 	}
 }
