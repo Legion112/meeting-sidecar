@@ -144,7 +144,9 @@ Preferred (sets CUDA / whisper.cpp link env automatically; embeds CUDA rpath so 
 
 ```text
 make
-./meeting-sidecar -config config.yaml
+make run
+make run-debug   # log STT transcripts and gate decisions to stderr
+./meeting-sidecar -debug -config config.yaml
 ```
 
 Or with the CUDA Whisper env above (add `-Wl,-rpath,...` if running the binary outside `make`):

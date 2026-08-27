@@ -24,7 +24,7 @@ CUDA_TARGET  := $(CUDA_HOME)/targets/x86_64-linux/lib
 EXTLD        := -Wl,-rpath,$(CUDA_LIB64) -Wl,-rpath,$(CUDA_TARGET) -lggml-cuda -lcudart -lcublas -lcuda -lculibos
 LDFLAGS      := -ldflags "-extldflags '$(EXTLD)'"
 
-.PHONY: all build test run clean check-deps list-monitors
+.PHONY: all build test run run-debug clean check-deps list-monitors
 
 all: build
 
@@ -41,6 +41,9 @@ test: check-deps
 
 run: build
 	./$(BIN) -config config.yaml
+
+run-debug: build
+	./$(BIN) -debug -config config.yaml
 
 list-monitors: build
 	./$(BIN) -list-monitors

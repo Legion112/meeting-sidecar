@@ -22,7 +22,12 @@ import (
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to YAML config")
 	listMonitors := flag.Bool("list-monitors", false, "list Pulse playback sinks and exit")
+	debug := flag.Bool("debug", false, "log STT transcripts and gate decisions to stderr")
 	flag.Parse()
+
+	if *debug {
+		slog.SetDefault(slog.New(slog.NewTextHandler(os.Stderr, &slog.HandlerOptions{Level: slog.LevelDebug})))
+	}
 
 	client, err := pulse.NewClient()
 	if err != nil {
