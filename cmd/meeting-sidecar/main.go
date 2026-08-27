@@ -83,16 +83,6 @@ func main() {
 		fmt.Fprintf(os.Stderr, "microphone: %v\n", err)
 		os.Exit(1)
 	}
-	micMixer, err := audio.NewMicMixer(src, factory, micSource, cfg.Audio.SampleRate, slog.Default())
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "mic mixer: %v\n", err)
-		os.Exit(1)
-	}
-	defer micMixer.Close()
-	if err := micMixer.SetMicEnabled(cfg.MicEnabled()); err != nil {
-		fmt.Fprintf(os.Stderr, "microphone: %v\n", err)
-		os.Exit(1)
-	}
 
 	ctx := context.Background()
 	tr, err := app.NewWhisperTranscriber(ctx, cfg, nil, nil)
@@ -125,15 +115,15 @@ func main() {
 	}
 
 	if err := app.Run(ctx, app.Deps{
-		Config:      cfg,
-		Source:      micMixer,
-		MicMixer:    micMixer,
-		MicSource:   micSource,
-		Transcriber: tr,
-		Gate:        gate,
-		Completer:   completer,
-		HUD:         hud,
-		Logger:      slog.Default(),
+		Config:        cfg,
+		Source:        src,
+		RecordFactory: factory,
+		MicSource:     micSource,
+		Transcriber:   tr,
+		Gate:          gate,
+		Completer:     completer,
+		HUD:           hud,
+		Logger:        slog.Default(),
 	}); err != nil {
 		fmt.Fprintf(os.Stderr, "run: %v\n", err)
 		os.Exit(1)

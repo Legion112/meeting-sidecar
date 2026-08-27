@@ -19,7 +19,7 @@ type quickHUD struct {
 }
 
 func (q *quickHUD) SetStatus(s string)                      { q.inner.SetStatus(s) }
-func (q *quickHUD) AppendCaption(text string)               { q.inner.AppendCaption(text) }
+func (q *quickHUD) AppendCaption(source ui.CaptionSource, text string) { q.inner.AppendCaption(source, text) }
 func (q *quickHUD) BindMicCapture(initial bool, fn func(bool)) { q.inner.BindMicCapture(initial, fn) }
 func (q *quickHUD) ShowSuggestion(s ui.Suggestion)          { q.inner.ShowSuggestion(s) }
 func (q *quickHUD) PushAudio(samples []int16)                 { q.inner.PushAudio(samples) }

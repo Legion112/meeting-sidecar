@@ -10,7 +10,7 @@ Private meeting assistant for Linux (GNOME/X11 + PipeWire). It listens to **meet
 
 | Stage | Where | Why |
 |---|---|---|
-| Capture | Pulse/PipeWire **sink monitor** (+ optional **microphone** via HUD checkbox) | Meeting audio from playback; enable mic to also capture your voice. |
+| Capture | Pulse/PipeWire **sink monitor** + optional **microphone** (separate pipelines) | Playback and mic are captured and processed independently; enable mic via HUD checkbox. |
 | VAD | Local Go | Silence is discarded and **never** reaches Whisper/LLM. |
 | STT | Local Whisper (whisper.cpp) | Core transcription stays on-device. |
 | Question gate | Small Ollama model | Cheap filter so ChatGPT is not called for every sentence. |
@@ -20,19 +20,27 @@ Private meeting assistant for Linux (GNOME/X11 + PipeWire). It listens to **meet
 ```mermaid
 flowchart LR
   PulseMonitor[Pulse_sink_monitor]
-  Cap[internal/audio]
-  VAD[internal/vad]
+  MicInput[Pulse_microphone_input]
+  CapPB[internal/audio_playback]
+  CapMic[internal/audio_mic]
+  VADpb[internal/vad_playback]
+  VADmic[internal/vad_mic]
   Whisper[internal/stt whisper.cpp]
   Gate[internal/detect local_small_model]
   GPT[internal/llm openai_answers]
   HUD[internal/ui]
-  PulseMonitor --> Cap --> VAD
-  VAD -->|"speech_utterance"| Whisper
-  VAD -->|"silence"| SilenceDrop[discard]
+  PulseMonitor --> CapPB --> VADpb
+  MicInput --> CapMic --> VADmic
+  VADpb -->|"speech_utterance"| Whisper
+  VADmic -->|"speech_utterance"| Whisper
+  VADpb -->|"silence"| SilenceDrop[discard]
+  VADmic -->|"silence"| SilenceDrop
   Whisper --> Gate
   Gate -->|"question"| GPT --> HUD
   Gate -->|"not_question"| Skip[skip]
 ```
+
+Playback transcript lines use the default HUD color; microphone lines use a distinct accent color in the rolling transcript.
 
 ## Privacy and screen sharing
 
@@ -111,13 +119,13 @@ Copy [`config.example.yaml`](config.example.yaml) to `config.yaml` (gitignored).
 Important fields:
 
 - `audio.monitor`: empty → `default_sink + ".monitor"`; `all` → every playback sink (mixed, hotplug rescan); or one explicit `.monitor` name (mics rejected)
-- `audio.microphone`: initial HUD checkbox state for mixing default Pulse input with playback
+- `audio.microphone`: initial HUD checkbox state for the separate microphone pipeline
 - `audio.microphone_source`: empty → default input device; or explicit Pulse source id
 - `stt.model`: shorthand (`small`, `large-v3-turbo`, …) or path; searches `~/.local/share/meeting-sidecar/models/` then `~/github/transcription/models/`
 - `stt.model_path`: legacy explicit path when `stt.model` is empty
 - `stt.language`: Whisper language code (`ru`, `en`, `auto`); when `auto`, falls back to `assistant.language`
 - `audio.vad`: optional energy-VAD overrides (`energy_threshold`, `hangover_ms`, `min_speech_ms`, `max_speech_sec`)
-- `audio.vad_mic`: VAD overrides applied while **Capture microphone** is checked (longer hangover, higher min speech — keeps full questions together)
+- `audio.vad_mic`: VAD overrides for the **microphone** pipeline (longer hangover, higher min speech — keeps full questions together)
 - `detect.ollama.model`: small local classifier
 - `llm.provider`: `openai` (default) or `ollama`
 - `llm.openai.model`: default `gpt-5.6-luna`

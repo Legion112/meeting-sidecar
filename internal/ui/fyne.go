@@ -9,6 +9,7 @@ import (
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
@@ -17,11 +18,12 @@ type FyneHUD struct {
 	app       fyne.App
 	win       fyne.Window
 	status    *widget.Label
-	waveform  fyne.CanvasObject
-	waveBuf   waveBuffer
-	waveAt    atomic.Int64
-	captions  *widget.Label
-	captionLines []string
+	waveform       fyne.CanvasObject
+	waveBuf        waveBuffer
+	waveAt         atomic.Int64
+	captions       *widget.RichText
+	captionScroll  *container.Scroll
+	captionLines   []CaptionLine
 	question  *widget.Label
 	answer    *widget.Label
 	micCheck  *widget.Check
@@ -60,19 +62,25 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 	question.Wrapping = fyne.TextWrapWord
 	answer := widget.NewLabel("")
 	answer.Wrapping = fyne.TextWrapWord
-	captions := widget.NewLabel("Transcript appears here…")
+	captions := widget.NewRichText(&widget.TextSegment{
+		Text: "Transcript appears here…\n",
+		Style: widget.RichTextStyle{
+			ColorName: theme.ColorNameForeground,
+		},
+	})
 	captions.Wrapping = fyne.TextWrapWord
 	captionScroll := container.NewScroll(captions)
 	captionScroll.SetMinSize(fyne.NewSize(380, 140))
 	h := &FyneHUD{
-		app:       a,
-		win:       w,
-		status:    status,
-		captions:  captions,
-		question:  question,
-		answer:    answer,
-		display:   opts.Display,
-		alwaysTop: opts.AlwaysOnTop,
+		app:           a,
+		win:           w,
+		status:        status,
+		captions:      captions,
+		captionScroll: captionScroll,
+		question:      question,
+		answer:        answer,
+		display:       opts.Display,
+		alwaysTop:     opts.AlwaysOnTop,
 	}
 	h.HideBtn = widget.NewButton("Hide", func() { h.Hide() })
 	micCheck := widget.NewCheck("Capture microphone", nil)
@@ -144,7 +152,7 @@ func (h *FyneHUD) SetStatus(status string) {
 }
 
 // AppendCaption implements HUD.
-func (h *FyneHUD) AppendCaption(text string) {
+func (h *FyneHUD) AppendCaption(source CaptionSource, text string) {
 	text = strings.TrimSpace(text)
 	if text == "" {
 		return
@@ -161,13 +169,39 @@ func (h *FyneHUD) AppendCaption(text string) {
 		if h.closed || h.captions == nil {
 			return
 		}
-		h.captionLines = append(h.captionLines, text)
+		if len(h.captionLines) == 0 && len(h.captions.Segments) == 1 {
+			if seg, ok := h.captions.Segments[0].(*widget.TextSegment); ok && strings.HasPrefix(seg.Text, "Transcript appears here") {
+				h.captions.Segments = nil
+			}
+		}
+		h.captionLines = append(h.captionLines, CaptionLine{Source: source, Text: text})
 		if len(h.captionLines) > maxCaptionLines {
 			h.captionLines = h.captionLines[len(h.captionLines)-maxCaptionLines:]
 		}
-		h.captions.SetText(strings.Join(h.captionLines, "\n"))
+		h.captions.Segments = captionSegments(h.captionLines)
+		h.captions.Refresh()
+		if h.captionScroll != nil {
+			h.captionScroll.ScrollToBottom()
+		}
 		h.win.Show()
 	})
+}
+
+func captionSegments(lines []CaptionLine) []widget.RichTextSegment {
+	segments := make([]widget.RichTextSegment, 0, len(lines))
+	for _, line := range lines {
+		colorName := theme.ColorNameForeground
+		if line.Source == CaptionMicrophone {
+			colorName = theme.ColorNamePrimary
+		}
+		segments = append(segments, &widget.TextSegment{
+			Text: line.Text + "\n",
+			Style: widget.RichTextStyle{
+				ColorName: colorName,
+			},
+		})
+	}
+	return segments
 }
 
 // BindMicCapture implements HUD.

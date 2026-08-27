@@ -10,7 +10,7 @@ const maxCaptionLines = 200
 type MemoryHUD struct {
 	mu          sync.Mutex
 	Status      string
-	Captions    []string
+	Captions    []CaptionLine
 	MicEnabled  bool
 	micOnChange func(enabled bool)
 	Last        Suggestion
@@ -36,13 +36,13 @@ func (h *MemoryHUD) SetStatus(status string) {
 }
 
 // AppendCaption implements HUD.
-func (h *MemoryHUD) AppendCaption(text string) {
+func (h *MemoryHUD) AppendCaption(source CaptionSource, text string) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 	if text == "" {
 		return
 	}
-	h.Captions = append(h.Captions, text)
+	h.Captions = append(h.Captions, CaptionLine{Source: source, Text: text})
 	h.Hidden = false
 }
 

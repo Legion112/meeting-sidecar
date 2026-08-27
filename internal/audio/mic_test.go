@@ -1,10 +1,8 @@
 package audio_test
 
 import (
-	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/Legion112/meeting-sidecar/internal/audio"
 )
@@ -15,22 +13,6 @@ type fakeSourceQuerier struct {
 }
 
 func (f fakeSourceQuerier) DefaultSource() (string, error) { return f.source, f.err }
-
-type pushSrc struct {
-	chunks [][]int16
-	i      int
-}
-
-func (s *pushSrc) Read(ctx context.Context, dst []int16) (int, error) {
-	if s.i >= len(s.chunks) {
-		<-ctx.Done()
-		return 0, ctx.Err()
-	}
-	n := copy(dst, s.chunks[s.i])
-	s.i++
-	return n, nil
-}
-func (s *pushSrc) Close() error { return nil }
 
 func TestResolveMicrophone(t *testing.T) {
 	name, err := audio.ResolveMicrophone("alsa_input.usb", nil)
@@ -51,124 +33,44 @@ func TestResolveMicrophone(t *testing.T) {
 	}
 }
 
-func TestMicMixerToggle(t *testing.T) {
-	base := &pushSrc{chunks: [][]int16{{100, 200}, {300, 400}, {500, 600}}}
-	var opened, started, stopped int
-	factory := func(source string, sampleRate int, onSamples func([]int16)) (audio.RecordControl, error) {
-		if source != "mic1" {
-			t.Fatalf("source %q", source)
-		}
-		opened++
-		return audio.RecordControl{
-			Start: func() { started++ },
-			Stop:  func() { stopped++ },
-		}, nil
-	}
-	m, err := audio.NewMicMixer(base, factory, "mic1", 16000, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Close()
-
-	n, err := m.Read(context.Background(), make([]int16, 2))
-	if err != nil || n != 2 {
-		t.Fatalf("base read: %d %v", n, err)
-	}
-	if opened != 0 {
-		t.Fatal("mic should be closed initially")
-	}
-
-	if err := m.SetMicEnabled(true); err != nil {
-		t.Fatal(err)
-	}
-	if !m.MicEnabled() || opened != 1 || started != 1 {
-		t.Fatalf("enabled: opened=%d started=%d", opened, started)
-	}
-
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
-	defer cancel()
-	dst := make([]int16, 2)
-	n, err = m.Read(ctx, dst)
-	if err != nil || n != 2 {
-		t.Fatalf("mixed read: %d %v", n, err)
-	}
-
-	if err := m.SetMicEnabled(false); err != nil {
-		t.Fatal(err)
-	}
-	if m.MicEnabled() || stopped != 1 {
-		t.Fatalf("disabled stopped=%d", stopped)
-	}
-}
-
-func TestMicMixerValidation(t *testing.T) {
-	base := &pushSrc{}
-	factory := func(string, int, func([]int16)) (audio.RecordControl, error) {
-		return audio.RecordControl{}, nil
-	}
-	_, err := audio.NewMicMixer(nil, factory, "mic", 16000, nil)
-	if err == nil {
-		t.Fatal("nil base")
-	}
-	_, err = audio.NewMicMixer(base, nil, "mic", 16000, nil)
+func TestOpenInput(t *testing.T) {
+	_, err := audio.OpenInput(nil, "mic", 16000)
 	if err == nil {
 		t.Fatal("nil factory")
 	}
-	_, err = audio.NewMicMixer(base, factory, "", 16000, nil)
+	_, err = audio.OpenInput(func(string, int, func([]int16)) (audio.RecordControl, error) {
+		return audio.RecordControl{}, nil
+	}, "", 16000)
 	if err == nil {
 		t.Fatal("empty source")
 	}
-	_, err = audio.NewMicMixer(base, factory, "x.monitor", 16000, nil)
+	_, err = audio.OpenInput(func(string, int, func([]int16)) (audio.RecordControl, error) {
+		return audio.RecordControl{}, nil
+	}, "out.monitor", 16000)
 	if err == nil {
 		t.Fatal("monitor source")
 	}
+	var opened bool
+	src, err := audio.OpenInput(func(source string, sampleRate int, onSamples func([]int16)) (audio.RecordControl, error) {
+		if source != "mic1" || sampleRate != 16000 {
+			t.Fatalf("source=%q rate=%d", source, sampleRate)
+		}
+		opened = true
+		return audio.RecordControl{Start: func() {}}, nil
+	}, "mic1", 16000)
+	if err != nil || !opened {
+		t.Fatalf("open: %v opened=%v", err, opened)
+	}
+	if err := src.Close(); err != nil {
+		t.Fatal(err)
+	}
 }
 
-func TestMicMixerFactoryError(t *testing.T) {
-	base := &pushSrc{chunks: [][]int16{{1, 2}}}
-	factory := func(string, int, func([]int16)) (audio.RecordControl, error) {
+func TestOpenInputFactoryError(t *testing.T) {
+	_, err := audio.OpenInput(func(string, int, func([]int16)) (audio.RecordControl, error) {
 		return audio.RecordControl{}, errors.New("pulse")
-	}
-	m, err := audio.NewMicMixer(base, factory, "mic", 16000, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := m.SetMicEnabled(true); err == nil {
-		t.Fatal("expected open error")
-	}
-}
-
-func TestMicMixerClose(t *testing.T) {
-	m, err := audio.NewMicMixer(&pushSrc{chunks: [][]int16{{1, 2}}}, func(string, int, func([]int16)) (audio.RecordControl, error) {
-		return audio.RecordControl{Start: func() {}, Stop: func() {}}, nil
-	}, "mic", 16000, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	if err := m.SetMicEnabled(true); err != nil {
-		t.Fatal(err)
-	}
-	if err := m.Close(); err != nil {
-		t.Fatal(err)
-	}
-	if m.MicEnabled() {
-		t.Fatal("mic should be off after close")
-	}
-}
-
-func TestMicMixerReadWaits(t *testing.T) {
-	base := &pushSrc{chunks: nil}
-	m, err := audio.NewMicMixer(base, func(string, int, func([]int16)) (audio.RecordControl, error) {
-		return audio.RecordControl{}, nil
-	}, "mic", 16000, nil)
-	if err != nil {
-		t.Fatal(err)
-	}
-	defer m.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), 50*time.Millisecond)
-	defer cancel()
-	_, err = m.Read(ctx, make([]int16, 8))
+	}, "mic", 16000)
 	if err == nil {
-		t.Fatal("expected timeout")
+		t.Fatal("expected factory error")
 	}
 }

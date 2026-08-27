@@ -2,7 +2,7 @@ audio:
   # Empty = default sink + ".monitor" (playback only by default).
   # all = every playback sink monitor, mixed; rescans for new headphones.
   monitor: ""
-  # Initial state of the HUD "Capture microphone" checkbox (mixes default Pulse input with playback).
+  # Initial state of the HUD "Capture microphone" checkbox (starts a separate mic pipeline).
   microphone: false
   # Empty = default Pulse input source; or an explicit source id (not .monitor).
   microphone_source: ""
@@ -13,7 +13,7 @@ audio:
   #   hangover_ms: 500
   #   min_speech_ms: 250
   #   max_speech_sec: 10
-  # Softer VAD when "Capture microphone" is checked (defaults: threshold 250, hangover 800 ms, min 400 ms).
+  # VAD for the separate microphone pipeline (defaults: threshold 250, hangover 800 ms, min 400 ms).
   # vad_mic:
   #   energy_threshold: 250
   #   hangover_ms: 800

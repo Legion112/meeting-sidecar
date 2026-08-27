@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/signal"
 	"strings"
+	"sync"
 	"syscall"
 
 	"github.com/Legion112/meeting-sidecar/internal/audio"
@@ -22,17 +23,17 @@ import (
 
 // Deps holds injectable runtime dependencies.
 type Deps struct {
-	Config      config.Config
-	Source      audio.PCMSource
-	MicMixer    *audio.MicMixer
-	MicSource   string
-	Transcriber stt.Transcriber
-	Gate        detect.Gate
-	Completer   llm.Completer
-	HUD         ui.HUD
-	Logger      *slog.Logger
-	EnsureModel func(ctx context.Context, path string) error
-	NewEngine   func(modelPath string, opts whisperstt.EngineOptions) (whisperstt.Engine, error)
+	Config        config.Config
+	Source        audio.PCMSource
+	RecordFactory audio.RecordFactory
+	MicSource     string
+	Transcriber   stt.Transcriber
+	Gate          detect.Gate
+	Completer     llm.Completer
+	HUD           ui.HUD
+	Logger        *slog.Logger
+	EnsureModel   func(ctx context.Context, path string) error
+	NewEngine     func(modelPath string, opts whisperstt.EngineOptions) (whisperstt.Engine, error)
 }
 
 // Run starts the meeting-sidecar pipeline until interrupted.
@@ -58,49 +59,127 @@ func Run(ctx context.Context, d Deps) error {
 	}
 
 	cfg := d.Config
-	seg := vad.NewSegmenter(cfg.Audio.SegmenterConfig())
-	if d.MicMixer != nil && d.MicMixer.MicEnabled() {
-		seg = vad.NewSegmenter(cfg.Audio.SegmenterConfigMic())
-	}
-	runner, _ := pipeline.New(pipeline.Deps{
-		Source:       d.Source,
-		Segmenter:    seg,
-		Transcriber:  d.Transcriber,
-		Gate:         d.Gate,
-		Completer:    d.Completer,
-		HUD:          d.HUD,
-		SampleRate:   cfg.Audio.SampleRate,
-		SystemPrompt: cfg.Assistant.SystemPrompt,
-		Logger:       d.Logger,
+	playbackRunner, err := pipeline.New(pipeline.Deps{
+		Source:        d.Source,
+		Segmenter:     vad.NewSegmenter(cfg.Audio.SegmenterConfig()),
+		Transcriber:   d.Transcriber,
+		Gate:          d.Gate,
+		Completer:     d.Completer,
+		HUD:           d.HUD,
+		CaptionSource: ui.CaptionPlayback,
+		SampleRate:    cfg.Audio.SampleRate,
+		SystemPrompt:  cfg.Assistant.SystemPrompt,
+		Logger:        d.Logger,
 	})
-
-	if d.MicMixer != nil {
-		micMixer := d.MicMixer
-		micSource := d.MicSource
-		d.HUD.BindMicCapture(cfg.MicEnabled(), func(on bool) {
-			if err := micMixer.SetMicEnabled(on); err != nil {
-				d.Logger.Warn("microphone toggle", "enabled", on, "err", err)
-				d.HUD.SetStatus("microphone error: " + err.Error())
-				return
-			}
-			if on {
-				runner.SetSegmenter(vad.NewSegmenter(cfg.Audio.SegmenterConfigMic()))
-				d.Logger.Info("microphone capture enabled", "source", micSource)
-				d.HUD.SetStatus("listening (playback + mic)")
-			} else {
-				runner.SetSegmenter(vad.NewSegmenter(cfg.Audio.SegmenterConfig()))
-				d.Logger.Info("microphone capture disabled")
-				d.HUD.SetStatus("listening")
-			}
-		})
+	if err != nil {
+		return err
 	}
 
 	runCtx, cancel := signal.NotifyContext(ctx, os.Interrupt, syscall.SIGTERM)
 	defer cancel()
 
+	var micMu sync.Mutex
+	var micCancel context.CancelFunc
+	var micDone chan struct{}
+
+	stopMic := func() {
+		micMu.Lock()
+		cancelMic := micCancel
+		done := micDone
+		micCancel = nil
+		micDone = nil
+		micMu.Unlock()
+		if cancelMic != nil {
+			cancelMic()
+			<-done
+		}
+	}
+	defer stopMic()
+
+	startMic := func() error {
+		if d.RecordFactory == nil || d.MicSource == "" {
+			return fmt.Errorf("microphone capture is not configured")
+		}
+		micMu.Lock()
+		defer micMu.Unlock()
+		if micCancel != nil {
+			return nil
+		}
+		src, err := audio.OpenInput(d.RecordFactory, d.MicSource, cfg.Audio.SampleRate)
+		if err != nil {
+			return err
+		}
+		micRunner, err := pipeline.New(pipeline.Deps{
+			Source:        src,
+			Segmenter:     vad.NewSegmenter(cfg.Audio.SegmenterConfigMic()),
+			Transcriber:   d.Transcriber,
+			Gate:          d.Gate,
+			Completer:     d.Completer,
+			HUD:           d.HUD,
+			CaptionSource: ui.CaptionMicrophone,
+			SampleRate:    cfg.Audio.SampleRate,
+			SystemPrompt:  cfg.Assistant.SystemPrompt,
+			Logger:        d.Logger,
+		})
+		if err != nil {
+			_ = src.Close()
+			return err
+		}
+		micCtx, cancel := context.WithCancel(runCtx)
+		done := make(chan struct{})
+		micCancel = cancel
+		micDone = done
+		go func() {
+			defer close(done)
+			defer func() { _ = src.Close() }()
+			if err := micRunner.Run(micCtx); err != nil && micCtx.Err() == nil {
+				d.Logger.Warn("microphone pipeline", "err", err)
+			}
+		}()
+		return nil
+	}
+
+	setMicStatus := func(on bool) {
+		if on {
+			d.HUD.SetStatus("listening (playback + mic)")
+		} else {
+			d.HUD.SetStatus("listening")
+		}
+	}
+
+	if d.RecordFactory != nil && d.MicSource != "" {
+		initialMic := cfg.MicEnabled()
+		if initialMic {
+			if err := startMic(); err != nil {
+				d.Logger.Warn("microphone startup", "err", err)
+				d.HUD.SetStatus("microphone error: " + err.Error())
+				initialMic = false
+			}
+		}
+		d.HUD.BindMicCapture(initialMic, func(on bool) {
+			if on {
+				if err := startMic(); err != nil {
+					d.Logger.Warn("microphone toggle", "enabled", on, "err", err)
+					d.HUD.SetStatus("microphone error: " + err.Error())
+					return
+				}
+				d.Logger.Info("microphone pipeline enabled", "source", d.MicSource)
+				setMicStatus(true)
+				return
+			}
+			stopMic()
+			d.Logger.Info("microphone pipeline disabled")
+			setMicStatus(false)
+		})
+		if initialMic {
+			setMicStatus(true)
+		}
+	}
+
 	errCh := make(chan error, 1)
 	go func() {
-		err := runner.Run(runCtx)
+		err := playbackRunner.Run(runCtx)
+		stopMic()
 		_ = d.HUD.Close()
 		errCh <- err
 	}()
@@ -111,7 +190,7 @@ func Run(ctx context.Context, d Deps) error {
 		return err
 	}
 	cancel()
-	err := <-errCh
+	err = <-errCh
 	if err == context.Canceled || err == context.DeadlineExceeded {
 		return nil
 	}

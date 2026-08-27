@@ -16,13 +16,13 @@ func TestMemoryHUD(t *testing.T) {
 		t.Fatal(h.Status)
 	}
 	h.ShowSuggestion(ui.Suggestion{Question: "q", Answer: "a"})
-	h.AppendCaption("hello world")
+	h.AppendCaption(ui.CaptionPlayback, "hello world")
 	h.BindMicCapture(false, func(on bool) { h.MicEnabled = on })
 	h.PushAudio([]int16{1, 2})
 	if h.Last.Answer != "a" {
 		t.Fatal(h.Last)
 	}
-	if len(h.Captions) != 1 || h.Captions[0] != "hello world" {
+	if len(h.Captions) != 1 || h.Captions[0].Text != "hello world" || h.Captions[0].Source != ui.CaptionPlayback {
 		t.Fatalf("captions: %+v", h.Captions)
 	}
 	h.Hide()
@@ -41,6 +41,18 @@ func TestMemoryHUD(t *testing.T) {
 	}
 }
 
+func TestMemoryHUDCaptionSources(t *testing.T) {
+	h := ui.NewMemoryHUD()
+	h.AppendCaption(ui.CaptionPlayback, "from speakers")
+	h.AppendCaption(ui.CaptionMicrophone, "from mic")
+	if len(h.Captions) != 2 {
+		t.Fatalf("captions: %+v", h.Captions)
+	}
+	if h.Captions[0].Source != ui.CaptionPlayback || h.Captions[1].Source != ui.CaptionMicrophone {
+		t.Fatalf("sources: %+v", h.Captions)
+	}
+}
+
 func TestFyneHUD(t *testing.T) {
 	a := test.NewApp()
 	defer a.Quit()
@@ -55,7 +67,7 @@ func TestFyneHUD(t *testing.T) {
 	}
 	h.SetStatus("listening")
 	h.PushAudio([]int16{100, -100, 200})
-	h.AppendCaption("Привет всем")
+	h.AppendCaption(ui.CaptionMicrophone, "Привет всем")
 	h.BindMicCapture(true, nil)
 	h.ShowSuggestion(ui.Suggestion{Question: "Q?", Answer: "A"})
 	test.Tap(h.HideBtn)

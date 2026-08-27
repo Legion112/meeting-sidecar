@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"sync"
 )
 
 // userHomeDir is swapped in tests.
@@ -33,6 +34,7 @@ type Engine interface {
 // Client is a Transcriber backed by a Whisper Engine.
 type Client struct {
 	Engine Engine
+	mu     sync.Mutex
 }
 
 // Transcribe implements stt.Transcriber.
@@ -50,6 +52,8 @@ func (c *Client) Transcribe(ctx context.Context, pcm []int16, sampleRate int) (s
 	if sampleRate != 16000 {
 		samples = resampleLinear(samples, sampleRate, 16000)
 	}
+	c.mu.Lock()
+	defer c.mu.Unlock()
 	text, err := c.Engine.Transcribe(ctx, samples)
 	if err != nil {
 		return "", fmt.Errorf("whisper: %w", err)
