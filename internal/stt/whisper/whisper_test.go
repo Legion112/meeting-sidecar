@@ -33,7 +33,7 @@ func (f fakeEngine) Transcribe(ctx context.Context, samples []float32) (string, 
 func (f fakeEngine) Close() error { return nil }
 
 func TestClient(t *testing.T) {
-	c := &whisper.Client{Engine: fakeEngine{text: "hello"}, Language: "en"}
+	c := &whisper.Client{Engine: fakeEngine{text: "hello"}}
 	pcm := make([]int16, 1600)
 	for i := range pcm {
 		pcm[i] = 1000
@@ -140,7 +140,7 @@ func TestDownloader(t *testing.T) {
 }
 
 func TestNewNativeEngineMissingModel(t *testing.T) {
-	_, err := whisper.NewNativeEngine("/no/such/model.bin", "en")
+	_, err := whisper.NewNativeEngine("/no/such/model.bin", whisper.EngineOptions{Language: "en"})
 	if err == nil {
 		t.Fatal("expected load error for missing model")
 	}

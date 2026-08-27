@@ -5,6 +5,7 @@ import (
 	"os"
 	"strings"
 
+	"github.com/Legion112/meeting-sidecar/internal/vad"
 	"gopkg.in/yaml.v3"
 )
 
@@ -29,14 +30,26 @@ type Config struct {
 }
 
 type AudioConfig struct {
-	Monitor    string `yaml:"monitor"`
-	SampleRate int    `yaml:"sample_rate"`
+	Monitor    string    `yaml:"monitor"`
+	SampleRate int       `yaml:"sample_rate"`
+	VAD        VADConfig `yaml:"vad"`
+}
+
+// VADConfig overrides energy VAD defaults; zero values keep built-in defaults.
+type VADConfig struct {
+	EnergyThreshold float64 `yaml:"energy_threshold"`
+	HangoverMs      int     `yaml:"hangover_ms"`
+	MinSpeechMs     int     `yaml:"min_speech_ms"`
+	MaxSpeechSec    int     `yaml:"max_speech_sec"`
 }
 
 type STTConfig struct {
-	Provider  string `yaml:"provider"`
-	ModelPath string `yaml:"model_path"`
-	Language  string `yaml:"language"`
+	Provider      string `yaml:"provider"`
+	Model         string `yaml:"model"`
+	ModelPath     string `yaml:"model_path"`
+	Language      string `yaml:"language"`
+	InitialPrompt string `yaml:"initial_prompt"`
+	Threads       int    `yaml:"threads"`
 }
 
 type DetectConfig struct {
@@ -136,6 +149,9 @@ func (c *Config) applyDefaults() {
 	if strings.TrimSpace(c.STT.Language) == "" {
 		c.STT.Language = "auto"
 	}
+	if c.STT.Threads <= 0 {
+		c.STT.Threads = 4
+	}
 	if strings.TrimSpace(c.Detect.Provider) == "" {
 		c.Detect.Provider = "ollama"
 	}
@@ -195,4 +211,24 @@ func (c Config) Validate() error {
 // IsMonitorName reports whether name looks like a Pulse sink monitor (playback loopback).
 func IsMonitorName(name string) bool {
 	return strings.HasSuffix(strings.TrimSpace(name), ".monitor")
+}
+
+// SegmenterConfig builds a VAD segmenter config from audio settings.
+func (a AudioConfig) SegmenterConfig() vad.Config {
+	cfg := vad.DefaultConfig(a.SampleRate)
+	v := a.VAD
+	if v.EnergyThreshold > 0 {
+		cfg.EnergyThreshold = v.EnergyThreshold
+	}
+	frameMs := cfg.FrameMs
+	if v.HangoverMs > 0 {
+		cfg.HangoverFrames = (v.HangoverMs + frameMs - 1) / frameMs
+	}
+	if v.MinSpeechMs > 0 {
+		cfg.MinSpeechFrames = (v.MinSpeechMs + frameMs - 1) / frameMs
+	}
+	if v.MaxSpeechSec > 0 {
+		cfg.MaxSpeechFrames = a.SampleRate * v.MaxSpeechSec / frameMs
+	}
+	return cfg
 }

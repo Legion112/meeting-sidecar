@@ -32,8 +32,7 @@ type Engine interface {
 
 // Client is a Transcriber backed by a Whisper Engine.
 type Client struct {
-	Engine   Engine
-	Language string
+	Engine Engine
 }
 
 // Transcribe implements stt.Transcriber.
@@ -106,6 +105,7 @@ func DefaultModelPath() (string, error) {
 }
 
 // ResolveModelPath returns configured path or the default.
+// Deprecated: use config.Config.ResolveSTTModelPath.
 func ResolveModelPath(configured string) (string, error) {
 	if configured != "" {
 		return configured, nil

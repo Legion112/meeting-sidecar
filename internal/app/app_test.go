@@ -117,7 +117,7 @@ func TestFactories(t *testing.T) {
 
 	trr, err := app.NewWhisperTranscriber(context.Background(), config.Default(),
 		func(context.Context, string) error { return nil },
-		func(string, string) (whisperstt.Engine, error) { return eng{}, nil },
+		func(string, whisperstt.EngineOptions) (whisperstt.Engine, error) { return eng{}, nil },
 	)
 	if err != nil || trr == nil {
 		t.Fatal(err)
@@ -133,7 +133,7 @@ func TestFactories(t *testing.T) {
 	}
 	_, err = app.NewWhisperTranscriber(context.Background(), config.Default(),
 		func(context.Context, string) error { return nil },
-		func(string, string) (whisperstt.Engine, error) { return nil, errors.New("eng") },
+		func(string, whisperstt.EngineOptions) (whisperstt.Engine, error) { return nil, errors.New("eng") },
 	)
 	if err == nil {
 		t.Fatal("engine err")
@@ -142,7 +142,7 @@ func TestFactories(t *testing.T) {
 	// nil newEngine uses NewNativeEngine — inject a failing engine so the test does not depend on local model files.
 	_, err = app.NewWhisperTranscriber(context.Background(), config.Default(),
 		func(context.Context, string) error { return nil },
-		func(string, string) (whisperstt.Engine, error) { return nil, errors.New("no model") },
+		func(string, whisperstt.EngineOptions) (whisperstt.Engine, error) { return nil, errors.New("no model") },
 	)
 	if err == nil {
 		t.Fatal("expected engine failure")

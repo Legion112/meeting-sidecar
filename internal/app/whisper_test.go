@@ -20,7 +20,7 @@ func TestNewWhisperNilEnsureExistingFile(t *testing.T) {
 	}
 	cfg := config.Default()
 	cfg.STT.ModelPath = path
-	tr, err := app.NewWhisperTranscriber(context.Background(), cfg, nil, func(string, string) (whisperstt.Engine, error) {
+	tr, err := app.NewWhisperTranscriber(context.Background(), cfg, nil, func(string, whisperstt.EngineOptions) (whisperstt.Engine, error) {
 		return eng{}, nil
 	})
 	if err != nil {
@@ -30,13 +30,13 @@ func TestNewWhisperNilEnsureExistingFile(t *testing.T) {
 }
 
 func TestNewWhisperResolveError(t *testing.T) {
-	whisperstt.SetUserHomeDirForTest(func() (string, error) { return "", errors.New("nohome") })
-	t.Cleanup(whisperstt.ResetUserHomeDirForTest)
+	config.SetUserHomeDirForTest(func() (string, error) { return "", errors.New("nohome") })
+	t.Cleanup(config.ResetUserHomeDirForTest)
 	cfg := config.Default()
 	cfg.STT.ModelPath = ""
 	_, err := app.NewWhisperTranscriber(context.Background(), cfg,
 		func(context.Context, string) error { return nil },
-		func(string, string) (whisperstt.Engine, error) { return eng{}, nil },
+		func(string, whisperstt.EngineOptions) (whisperstt.Engine, error) { return eng{}, nil },
 	)
 	if err == nil {
 		t.Fatal("expected")

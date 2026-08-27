@@ -1,14 +1,33 @@
- audio:
+audio:
   # Empty = default sink + ".monitor" (playback only; never a microphone).
   # all = every playback sink monitor, mixed; rescans for new headphones.
   monitor: ""
   sample_rate: 16000
+  # Optional VAD overrides (omit to keep defaults: threshold 500, hangover 300 ms, min 100 ms, max 15 s).
+  # vad:
+  #   energy_threshold: 300
+  #   hangover_ms: 500
+  #   min_speech_ms: 250
+  #   max_speech_sec: 30
 
 stt:
   provider: whisper
-  # Empty = ~/.local/share/meeting-sidecar/models/ggml-small.bin
+  # Shorthand (small, large-v3-turbo, …) or absolute path. Takes precedence over model_path.
+  # Searches ~/.local/share/meeting-sidecar/models/ then ~/github/transcription/models/.
+  model: ""
+  # Legacy explicit path; used when model is empty.
   model_path: ""
   language: auto
+  initial_prompt: ""
+  threads: 4
+
+  # Russian meeting preset (recommended for live Russian calls):
+  # model: large-v3-turbo
+  # language: ru
+  # audio:
+  #   vad:
+  #     hangover_ms: 500
+  #     max_speech_sec: 30
 
 detect:
   provider: ollama
@@ -30,6 +49,7 @@ ui:
 
 assistant:
   language: auto
+  # When stt.language is auto, assistant.language is used for Whisper (e.g. ru).
   # Omit to use the baked-in default system prompt.
   # system_prompt: |
   #   ...

@@ -30,7 +30,7 @@ type Deps struct {
 	HUD         ui.HUD
 	Logger      *slog.Logger
 	EnsureModel func(ctx context.Context, path string) error
-	NewEngine   func(modelPath, language string) (whisperstt.Engine, error)
+	NewEngine   func(modelPath string, opts whisperstt.EngineOptions) (whisperstt.Engine, error)
 }
 
 // Run starts the meeting-sidecar pipeline until interrupted.
@@ -56,7 +56,7 @@ func Run(ctx context.Context, d Deps) error {
 	}
 
 	cfg := d.Config
-	seg := vad.NewSegmenter(vad.DefaultConfig(cfg.Audio.SampleRate))
+	seg := vad.NewSegmenter(cfg.Audio.SegmenterConfig())
 	runner, _ := pipeline.New(pipeline.Deps{
 		Source:       d.Source,
 		Segmenter:    seg,
@@ -121,7 +121,7 @@ func NewGate(cfg config.Config) (detect.Gate, error) {
 }
 
 // NewWhisperTranscriber downloads the model if needed and opens the engine.
-func NewWhisperTranscriber(ctx context.Context, cfg config.Config, ensure func(context.Context, string) error, newEngine func(string, string) (whisperstt.Engine, error)) (stt.Transcriber, error) {
+func NewWhisperTranscriber(ctx context.Context, cfg config.Config, ensure func(context.Context, string) error, newEngine func(string, whisperstt.EngineOptions) (whisperstt.Engine, error)) (stt.Transcriber, error) {
 	if ensure == nil {
 		ensure = func(ctx context.Context, path string) error {
 			d := &whisperstt.Downloader{}
@@ -131,16 +131,21 @@ func NewWhisperTranscriber(ctx context.Context, cfg config.Config, ensure func(c
 	if newEngine == nil {
 		newEngine = whisperstt.NewNativeEngine
 	}
-	path, err := whisperstt.ResolveModelPath(cfg.STT.ModelPath)
+	path, err := cfg.ResolveSTTModelPath()
 	if err != nil {
 		return nil, err
 	}
 	if err := ensure(ctx, path); err != nil {
 		return nil, err
 	}
-	eng, err := newEngine(path, cfg.STT.Language)
+	opts := whisperstt.EngineOptions{
+		Language:      cfg.STTLanguage(),
+		InitialPrompt: cfg.STT.InitialPrompt,
+		Threads:       uint(cfg.STT.Threads),
+	}
+	eng, err := newEngine(path, opts)
 	if err != nil {
 		return nil, err
 	}
-	return &whisperstt.Client{Engine: eng, Language: cfg.STT.Language}, nil
+	return &whisperstt.Client{Engine: eng}, nil
 }

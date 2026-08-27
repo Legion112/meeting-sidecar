@@ -53,6 +53,13 @@ func main() {
 		os.Exit(1)
 	}
 
+	modelPath, err := cfg.ResolveSTTModelPath()
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "stt model: %v\n", err)
+		os.Exit(1)
+	}
+	slog.Info("stt", "model", modelPath, "language", cfg.STTLanguage(), "threads", cfg.STT.Threads)
+
 	monitors, err := audio.ResolveMonitors(cfg.Audio.Monitor, pq)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "audio: %v\n", err)

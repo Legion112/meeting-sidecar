@@ -25,6 +25,8 @@ type fakeContext struct {
 	procErr error
 	segs    []wpkg.Segment
 	i       int
+	threads uint
+	prompt  string
 }
 
 func (c *fakeContext) SetLanguage(string) error       { return c.langErr }
@@ -34,7 +36,7 @@ func (c *fakeContext) Language() string               { return "en" }
 func (c *fakeContext) DetectedLanguage() string       { return "en" }
 func (c *fakeContext) SetOffset(time.Duration)        {}
 func (c *fakeContext) SetDuration(time.Duration)      {}
-func (c *fakeContext) SetThreads(uint)                {}
+func (c *fakeContext) SetThreads(v uint)                { c.threads = v }
 func (c *fakeContext) SetSplitOnWord(bool)            {}
 func (c *fakeContext) SetTokenThreshold(float32)      {}
 func (c *fakeContext) SetTokenSumThreshold(float32)   {}
@@ -45,7 +47,7 @@ func (c *fakeContext) SetAudioCtx(uint)               {}
 func (c *fakeContext) SetMaxContext(int)              {}
 func (c *fakeContext) SetBeamSize(int)                {}
 func (c *fakeContext) SetEntropyThold(float32)        {}
-func (c *fakeContext) SetInitialPrompt(string)        {}
+func (c *fakeContext) SetInitialPrompt(p string)        { c.prompt = p }
 func (c *fakeContext) SetTemperature(float32)         {}
 func (c *fakeContext) SetTemperatureFallback(float32) {}
 func (c *fakeContext) SetVAD(bool)                    {}
@@ -83,12 +85,11 @@ func TestNativeEngineWithFakeModel(t *testing.T) {
 	old := loadModel
 	t.Cleanup(func() { loadModel = old })
 
+	fc := &fakeContext{segs: []wpkg.Segment{{Text: " hi"}, {Text: " there"}}}
 	loadModel = func(path string) (wpkg.Model, error) {
-		return fakeModel{ctx: &fakeContext{
-			segs: []wpkg.Segment{{Text: " hi"}, {Text: " there"}},
-		}}, nil
+		return fakeModel{ctx: fc}, nil
 	}
-	eng, err := NewNativeEngine("/fake.bin", "en")
+	eng, err := NewNativeEngine("/fake.bin", EngineOptions{Language: "en", Threads: 4, InitialPrompt: "привет"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -104,7 +105,7 @@ func TestNativeEngineWithFakeModel(t *testing.T) {
 	loadModel = func(string) (wpkg.Model, error) {
 		return fakeModel{ctx: &fakeContext{segs: []wpkg.Segment{{Text: "ok"}}}}, nil
 	}
-	eng2, err := NewNativeEngine("/fake.bin", "auto")
+	eng2, err := NewNativeEngine("/fake.bin", EngineOptions{Language: "auto"})
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -114,7 +115,7 @@ func TestNativeEngineWithFakeModel(t *testing.T) {
 	}
 
 	// empty language also skips
-	eng3 := &NativeEngine{model: fakeModel{ctx: &fakeContext{segs: nil}}, lang: ""}
+	eng3 := &NativeEngine{model: fakeModel{ctx: &fakeContext{segs: nil}}, opts: EngineOptions{}}
 	text, err = eng3.Transcribe(context.Background(), nil)
 	if err != nil || text != "" {
 		t.Fatalf("%q %v", text, err)
@@ -155,17 +156,15 @@ func TestNativeEngineWithFakeModel(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// SetLanguage error is ignored
+	// SetLanguage error fails
 	eng6 := &NativeEngine{model: fakeModel{ctx: &fakeContext{
 		langErr: errors.New("lang"),
-		segs:    []wpkg.Segment{{Text: "x"}},
-	}}, lang: "en"}
-	text, err = eng6.Transcribe(context.Background(), nil)
-	if err != nil || text != "x" {
-		t.Fatalf("%q %v", text, err)
+	}}, opts: EngineOptions{Language: "en"}}
+	if _, err := eng6.Transcribe(context.Background(), nil); err == nil {
+		t.Fatal("want lang err")
 	}
 
-	if _, err := NewNativeEngine("", "en"); err == nil {
+	if _, err := NewNativeEngine("", EngineOptions{}); err == nil {
 		t.Fatal("empty path")
 	}
 }

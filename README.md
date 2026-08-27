@@ -111,7 +111,10 @@ Copy [`config.example.yaml`](config.example.yaml) to `config.yaml` (gitignored).
 Important fields:
 
 - `audio.monitor`: empty → `default_sink + ".monitor"`; `all` → every playback sink (mixed, hotplug rescan); or one explicit `.monitor` name (mics rejected)
-- `stt.model_path`: empty → `~/.local/share/meeting-sidecar/models/ggml-small.bin`
+- `stt.model`: shorthand (`small`, `large-v3-turbo`, …) or path; searches `~/.local/share/meeting-sidecar/models/` then `~/github/transcription/models/`
+- `stt.model_path`: legacy explicit path when `stt.model` is empty
+- `stt.language`: Whisper language code (`ru`, `en`, `auto`); when `auto`, falls back to `assistant.language`
+- `audio.vad`: optional energy-VAD overrides (`energy_threshold`, `hangover_ms`, `min_speech_ms`, `max_speech_sec`)
 - `detect.ollama.model`: small local classifier
 - `llm.provider`: `openai` (default) or `ollama`
 - `llm.openai.model`: default `gpt-5.6-luna`
@@ -137,6 +140,28 @@ ollama pull llama3.2
 ```
 
 No `OPENAI_API_KEY` is required for this setup.
+
+### Russian meetings
+
+For Russian live meetings, use the same large model as the [`transcription`](https://github.com/Legion112/transcription) tool and force Russian (short VAD chunks with `language: auto` often hallucinate English):
+
+```yaml
+stt:
+  model: large-v3-turbo
+  language: ru
+audio:
+  vad:
+    hangover_ms: 500
+    max_speech_sec: 30
+```
+
+If you already have models under `~/github/transcription/models/`, meeting-sidecar finds them automatically — no copy needed. On startup, confirm the log line:
+
+```text
+level=INFO msg=stt model=.../ggml-large-v3-turbo.bin language=ru threads=4
+```
+
+Live capture quality depends on playback volume; STT accuracy should improve once model and language match the offline transcription setup. Use `make run-debug` to inspect each utterance.
 
 ## Run
 
