@@ -25,3 +25,4 @@ models/
 .vscode/
 *.swp
 .DS_Store
+config.yaml

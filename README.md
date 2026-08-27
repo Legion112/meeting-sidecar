@@ -119,19 +119,19 @@ Important fields:
 
 ## Run
 
-With the CUDA Whisper env above:
+Preferred (sets CUDA / whisper.cpp link env automatically):
+
+```text
+make
+./meeting-sidecar -config config.yaml
+```
+
+Or with the CUDA Whisper env above:
 
 ```text
 go build -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'" \
   -o meeting-sidecar ./cmd/meeting-sidecar
 ./meeting-sidecar -config config.yaml
-```
-
-Or:
-
-```text
-go run -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'" \
-  ./cmd/meeting-sidecar -config config.yaml
 ```
 
 Confirm the binary is CUDA-linked (`ldd meeting-sidecar | grep -i cuda`) and that inference uses the GPU (`nvidia-smi` while transcribing).
@@ -141,6 +141,8 @@ Confirm the binary is CUDA-linked (`ldd meeting-sidecar | grep -i cuda`) and tha
 Unit tests use fakes and `httptest` — no live OpenAI, Ollama, Whisper weights, Pulse, or GPU required for `internal/...` (Whisper engine paths are covered with a fake `wpkg.Model`). The same CUDA link flags are required because native Whisper CGO always compiles:
 
 ```text
+make test
+# or:
 go test ./internal/... -covermode=atomic -coverprofile=cover.out \
   -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'"
 go tool cover -func=cover.out
