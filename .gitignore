@@ -1,0 +1,27 @@
+# Local config and secrets
+config.yaml
+.env
+.env.*
+
+# Binaries
+/meeting-sidecar
+/cmd/meeting-sidecar/meeting-sidecar
+*.exe
+*.test
+*.out
+
+# Coverage
+cover.out
+coverage.html
+
+# Whisper / model blobs
+*.bin
+*.ggml
+models/
+.cache/
+
+# IDE / OS
+.idea/
+.vscode/
+*.swp
+.DS_Store
