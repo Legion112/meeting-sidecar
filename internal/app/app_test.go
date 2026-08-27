@@ -10,8 +10,8 @@ import (
 
 	"github.com/Legion112/meeting-sidecar/internal/app"
 	"github.com/Legion112/meeting-sidecar/internal/config"
-	"github.com/Legion112/meeting-sidecar/internal/ui"
 	whisperstt "github.com/Legion112/meeting-sidecar/internal/stt/whisper"
+	"github.com/Legion112/meeting-sidecar/internal/ui"
 )
 
 type src struct {
@@ -139,12 +139,12 @@ func TestFactories(t *testing.T) {
 		t.Fatal("engine err")
 	}
 
-	// default ensure writes nothing useful; stub engine fails without whisper tag
+	// nil newEngine uses NewNativeEngine — fails without a real ggml model file
 	_, err = app.NewWhisperTranscriber(context.Background(), config.Default(),
 		func(ctx context.Context, path string) error { return nil },
 		nil,
 	)
 	if err == nil {
-		t.Fatal("expected native stub failure")
+		t.Fatal("expected native engine failure without model")
 	}
 }

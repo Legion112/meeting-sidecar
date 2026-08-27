@@ -139,9 +139,9 @@ func TestDownloader(t *testing.T) {
 	}
 }
 
-func TestNewNativeEngineStub(t *testing.T) {
-	_, err := whisper.NewNativeEngine("/x", "en")
+func TestNewNativeEngineMissingModel(t *testing.T) {
+	_, err := whisper.NewNativeEngine("/no/such/model.bin", "en")
 	if err == nil {
-		t.Fatal("expected stub error without whisper tag")
+		t.Fatal("expected load error for missing model")
 	}
 }

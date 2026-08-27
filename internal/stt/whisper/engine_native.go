@@ -1,5 +1,3 @@
-//go:build whisper
-
 package whisper
 
 import (
@@ -10,18 +8,21 @@ import (
 	wpkg "github.com/ggerganov/whisper.cpp/bindings/go/pkg/whisper"
 )
 
-// NativeEngine wraps whisper.cpp Go bindings.
+// loadModel is swapped in tests so NativeEngine can be covered without GPU weights.
+var loadModel = wpkg.New
+
+// NativeEngine wraps whisper.cpp Go bindings (CUDA-linked libwhisper on this host).
 type NativeEngine struct {
 	model wpkg.Model
 	lang  string
 }
 
 // NewNativeEngine loads a ggml model from path.
-func NewNativeEngine(modelPath, language string) (*NativeEngine, error) {
+func NewNativeEngine(modelPath, language string) (Engine, error) {
 	if modelPath == "" {
 		return nil, fmt.Errorf("whisper model path is empty")
 	}
-	model, err := wpkg.New(modelPath)
+	model, err := loadModel(modelPath)
 	if err != nil {
 		return nil, fmt.Errorf("load whisper model: %w", err)
 	}

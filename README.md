@@ -67,9 +67,42 @@ Do not share the HUD window.
 - OpenGL/X11 headers for Fyne (`PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig`, packages providing `gl.pc`)
 - [Ollama](https://ollama.com) with a small gate model, e.g. `qwen2.5:0.5b`
 - `OPENAI_API_KEY` when `llm.provider: openai`
-- For native Whisper: build with `-tags whisper` after compiling **libwhisper** from [whisper.cpp](https://github.com/ggerganov/whisper.cpp) and setting `C_INCLUDE_PATH` / `LIBRARY_PATH` (see whisper.cpp `bindings/go` README)
+- **CUDA Whisper** (default STT): NVIDIA GPU + CUDA toolkit + whisper.cpp built with `GGML_CUDA=ON`
 
-Without `-tags whisper`, the binary still builds; starting STT returns a clear error until Whisper is linked. Model download (ggml-small) is implemented in pure Go either way.
+### One-time CUDA Whisper setup (this host)
+
+Paths used here:
+
+| Piece | Location |
+|---|---|
+| CUDA toolkit 13.0 | `~/sdk/cuda-13.0` (`nvcc` on `PATH`) |
+| whisper.cpp | `~/sdk/whisper.cpp` |
+| Static libs | `~/sdk/whisper.cpp/build_go/` (`libwhisper.a`, `libggml*.a`, `libggml-cuda.a`) |
+| Model | `~/.local/share/meeting-sidecar/models/ggml-small.bin` (auto-downloaded on first run) |
+
+Build whisper.cpp with GPU (not CPU-only):
+
+```text
+cmake -S . -B build_go \
+  -DCMAKE_BUILD_TYPE=Release \
+  -DBUILD_SHARED_LIBS=OFF \
+  -DGGML_CUDA=ON \
+  -DCMAKE_CUDA_COMPILER=$HOME/sdk/cuda-13.0/bin/nvcc
+cmake --build build_go --target whisper -j"$(nproc)"
+```
+
+Shell env for `go build` / `go test` / `go run` (CGO link order matters; use `-extldflags` so `-lggml-cuda` follows `-lggml`):
+
+```text
+export PATH=$HOME/sdk/go1.27.0/bin:$HOME/sdk/cuda-13.0/bin:$PATH
+export CUDA_PATH=$HOME/sdk/cuda-13.0
+export CUDA_HOME=$HOME/sdk/cuda-13.0
+export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
+export C_INCLUDE_PATH=$HOME/sdk/whisper.cpp/include:$HOME/sdk/whisper.cpp/ggml/include
+export LIBRARY_PATH=$HOME/sdk/whisper.cpp/build_go/src:$HOME/sdk/whisper.cpp/build_go/ggml/src:$HOME/sdk/whisper.cpp/build_go/ggml/src/ggml-cuda:$HOME/sdk/cuda-13.0/lib64:$HOME/sdk/cuda-13.0/targets/x86_64-linux/lib
+export LD_LIBRARY_PATH=$HOME/sdk/cuda-13.0/lib64:$HOME/sdk/cuda-13.0/targets/x86_64-linux/lib:${LD_LIBRARY_PATH:-}
+export CGO_ENABLED=1
+```
 
 ## Configuration
 
@@ -86,35 +119,34 @@ Important fields:
 
 ## Run
 
+With the CUDA Whisper env above:
+
 ```text
-export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig
-export PATH=/home/legion/sdk/go1.27.0/bin:$PATH
-go run ./cmd/meeting-sidecar -config config.yaml
+go build -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'" \
+  -o meeting-sidecar ./cmd/meeting-sidecar
+./meeting-sidecar -config config.yaml
 ```
 
 Or:
 
 ```text
-go build -o meeting-sidecar ./cmd/meeting-sidecar
-./meeting-sidecar -config config.yaml
+go run -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'" \
+  ./cmd/meeting-sidecar -config config.yaml
 ```
 
-With Whisper native engine:
-
-```text
-go build -tags whisper -o meeting-sidecar ./cmd/meeting-sidecar
-```
+Confirm the binary is CUDA-linked (`ldd meeting-sidecar | grep -i cuda`) and that inference uses the GPU (`nvidia-smi` while transcribing).
 
 ## Tests and coverage
 
-Unit tests use fakes and `httptest` — no live OpenAI, Ollama, Whisper weights, Pulse, or GPU required for `internal/...` (except optional download tests that hit a local `httptest` server).
+Unit tests use fakes and `httptest` — no live OpenAI, Ollama, Whisper weights, Pulse, or GPU required for `internal/...` (Whisper engine paths are covered with a fake `wpkg.Model`). The same CUDA link flags are required because native Whisper CGO always compiles:
 
 ```text
-go test ./internal/... -covermode=atomic -coverprofile=cover.out
+go test ./internal/... -covermode=atomic -coverprofile=cover.out \
+  -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'"
 go tool cover -func=cover.out
 ```
 
-Target: **100% statement coverage** of `internal/...` packages (Whisper CGO and upstream C are behind `-tags whisper` and are not part of the default coverage set).
+Target: **100% statement coverage** of `internal/...` packages.
 
 ## PipeWire notes (this host)
 
