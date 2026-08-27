@@ -20,7 +20,7 @@ type FyneHUD struct {
 	waveform  fyne.CanvasObject
 	waveBuf   waveBuffer
 	waveAt    atomic.Int64
-	captions  *widget.Entry
+	captions  *widget.Label
 	captionLines []string
 	question  *widget.Label
 	answer    *widget.Label
@@ -59,9 +59,8 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 	question.Wrapping = fyne.TextWrapWord
 	answer := widget.NewLabel("")
 	answer.Wrapping = fyne.TextWrapWord
-	captions := widget.NewMultiLineEntry()
-	captions.Disable()
-	captions.SetPlaceHolder("Transcript appears here…")
+	captions := widget.NewLabel("Transcript appears here…")
+	captions.Wrapping = fyne.TextWrapWord
 	captionScroll := container.NewScroll(captions)
 	captionScroll.SetMinSize(fyne.NewSize(380, 140))
 	h := &FyneHUD{
