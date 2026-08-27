@@ -110,6 +110,9 @@ func TestPipelineQuestionPath(t *testing.T) {
 	if hud.Last.Answer != "Y" {
 		t.Fatalf("hud %+v", hud.Last)
 	}
+	if hud.AudioPushes == 0 {
+		t.Fatal("expected audio waveform pushes")
+	}
 }
 
 func TestPipelineSkipsNonQuestion(t *testing.T) {

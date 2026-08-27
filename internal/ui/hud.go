@@ -10,6 +10,8 @@ type Suggestion struct {
 type HUD interface {
 	SetStatus(status string)
 	ShowSuggestion(s Suggestion)
+	// PushAudio feeds captured PCM for live waveform display (may be called from any goroutine).
+	PushAudio(samples []int16)
 	Hide()
 	// Run blocks until the UI exits (or returns immediately for headless fakes).
 	Run() error

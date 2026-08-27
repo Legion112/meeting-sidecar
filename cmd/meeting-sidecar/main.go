@@ -8,6 +8,7 @@ import (
 	"log/slog"
 	"os"
 	"strings"
+	"time"
 
 	fyneapp "fyne.io/fyne/v2/app"
 	"github.com/jfreymuth/pulse"
@@ -20,13 +21,8 @@ import (
 
 func main() {
 	configPath := flag.String("config", "config.yaml", "path to YAML config")
+	listMonitors := flag.Bool("list-monitors", false, "list Pulse playback sinks and exit")
 	flag.Parse()
-
-	cfg, err := loadConfig(*configPath)
-	if err != nil {
-		fmt.Fprintf(os.Stderr, "config: %v\n", err)
-		os.Exit(1)
-	}
 
 	client, err := pulse.NewClient()
 	if err != nil {
@@ -35,13 +31,36 @@ func main() {
 	}
 	defer client.Close()
 
-	monitor, err := audio.ResolveMonitor(cfg.Audio.Monitor, pulseQuerier{client: client})
+	pq := pulseQuerier{client: client}
+	if *listMonitors {
+		devs, err := pq.ListPlaybackMonitors()
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "list monitors: %v\n", err)
+			os.Exit(1)
+		}
+		fmt.Print(audio.FormatMonitorTable(devs))
+		return
+	}
+
+	cfg, err := loadConfig(*configPath)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "config: %v\n", err)
+		os.Exit(1)
+	}
+
+	monitors, err := audio.ResolveMonitors(cfg.Audio.Monitor, pq)
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "audio: %v\n", err)
 		os.Exit(1)
 	}
 
-	src, err := audio.OpenMonitor(pulseFactory(client), monitor, cfg.Audio.SampleRate)
+	factory := pulseFactory(client)
+	var src audio.PCMSource
+	if strings.EqualFold(strings.TrimSpace(cfg.Audio.Monitor), audio.MonitorAll) {
+		src, err = audio.OpenMultiMonitors(factory, monitors, cfg.Audio.SampleRate, pq, 2*time.Second, slog.Default())
+	} else {
+		src, err = audio.OpenMonitor(factory, monitors[0], cfg.Audio.SampleRate)
+	}
 	if err != nil {
 		fmt.Fprintf(os.Stderr, "audio open: %v\n", err)
 		os.Exit(1)
@@ -114,6 +133,23 @@ func (q pulseQuerier) DefaultSink() (string, error) {
 		return "", err
 	}
 	return sink.ID(), nil
+}
+
+func (q pulseQuerier) ListPlaybackMonitors() ([]audio.MonitorDevice, error) {
+	sinks, err := q.client.ListSinks()
+	if err != nil {
+		return nil, err
+	}
+	out := make([]audio.MonitorDevice, 0, len(sinks))
+	for _, s := range sinks {
+		id := s.ID()
+		out = append(out, audio.MonitorDevice{
+			SinkName:    id,
+			MonitorName: id + ".monitor",
+			Description: s.Name(),
+		})
+	}
+	return out, nil
 }
 
 func pulseFactory(client *pulse.Client) audio.RecordFactory {

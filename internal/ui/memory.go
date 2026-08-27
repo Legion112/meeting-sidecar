@@ -6,13 +6,15 @@ import (
 
 // MemoryHUD is a testable in-memory HUD.
 type MemoryHUD struct {
-	mu         sync.Mutex
-	Status     string
-	Last       Suggestion
-	Hidden     bool
-	Closed     bool
-	runOnce    sync.Once
-	runDone    chan struct{}
+	mu          sync.Mutex
+	Status      string
+	Last        Suggestion
+	Hidden      bool
+	Closed      bool
+	AudioPushes int
+	LastAudioN  int
+	runOnce     sync.Once
+	runDone     chan struct{}
 }
 
 // NewMemoryHUD creates a headless HUD.
@@ -34,6 +36,14 @@ func (h *MemoryHUD) ShowSuggestion(s Suggestion) {
 	defer h.mu.Unlock()
 	h.Last = s
 	h.Hidden = false
+}
+
+// PushAudio implements HUD.
+func (h *MemoryHUD) PushAudio(samples []int16) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.AudioPushes++
+	h.LastAudioN = len(samples)
 }
 
 // Hide implements HUD.

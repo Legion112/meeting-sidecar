@@ -16,6 +16,7 @@ func TestMemoryHUD(t *testing.T) {
 		t.Fatal(h.Status)
 	}
 	h.ShowSuggestion(ui.Suggestion{Question: "q", Answer: "a"})
+	h.PushAudio([]int16{1, 2})
 	if h.Last.Answer != "a" {
 		t.Fatal(h.Last)
 	}
@@ -48,6 +49,7 @@ func TestFyneHUD(t *testing.T) {
 		t.Fatal(err)
 	}
 	h.SetStatus("listening")
+	h.PushAudio([]int16{100, -100, 200})
 	h.ShowSuggestion(ui.Suggestion{Question: "Q?", Answer: "A"})
 	test.Tap(h.HideBtn)
 	h.Hide()

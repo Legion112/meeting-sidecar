@@ -20,6 +20,7 @@ type quickHUD struct {
 
 func (q *quickHUD) SetStatus(s string)                      { q.inner.SetStatus(s) }
 func (q *quickHUD) ShowSuggestion(s ui.Suggestion)          { q.inner.ShowSuggestion(s) }
+func (q *quickHUD) PushAudio(samples []int16)                 { q.inner.PushAudio(samples) }
 func (q *quickHUD) Hide()                                   { q.inner.Hide() }
 func (q *quickHUD) Close() error                            { return q.inner.Close() }
 func (q *quickHUD) Run() error {

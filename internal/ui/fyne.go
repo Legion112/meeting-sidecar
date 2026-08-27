@@ -3,6 +3,8 @@ package ui
 import (
 	"fmt"
 	"sync"
+	"sync/atomic"
+	"time"
 
 	"fyne.io/fyne/v2"
 	"fyne.io/fyne/v2/container"
@@ -14,6 +16,9 @@ type FyneHUD struct {
 	app       fyne.App
 	win       fyne.Window
 	status    *widget.Label
+	waveform  fyne.CanvasObject
+	waveBuf   waveBuffer
+	waveAt    atomic.Int64
 	question  *widget.Label
 	answer    *widget.Label
 	HideBtn   *widget.Button
@@ -61,9 +66,13 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 		alwaysTop: opts.AlwaysOnTop,
 	}
 	h.HideBtn = widget.NewButton("Hide", func() { h.Hide() })
+	wave := sizedWaveformRaster(&h.waveBuf)
+	h.waveform = wave
 	w.SetContent(container.NewVBox(
 		widget.NewLabel("Meeting sidecar (private)"),
 		status,
+		widget.NewLabel("Audio level"),
+		wave,
 		widget.NewSeparator(),
 		widget.NewLabel("Question"),
 		question,
@@ -71,8 +80,33 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 		answer,
 		h.HideBtn,
 	))
-	w.Resize(fyne.NewSize(420, 320))
+	w.Resize(fyne.NewSize(420, 400))
 	return h
+}
+
+// PushAudio implements HUD.
+func (h *FyneHUD) PushAudio(samples []int16) {
+	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		return
+	}
+	h.mu.Unlock()
+	h.waveBuf.push(samples)
+	now := time.Now().UnixMilli()
+	last := h.waveAt.Load()
+	if now-last < 40 {
+		return
+	}
+	h.waveAt.Store(now)
+	fyne.Do(func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.closed || h.waveform == nil {
+			return
+		}
+		h.waveform.Refresh()
+	})
 }
 
 // SetStatus implements HUD.

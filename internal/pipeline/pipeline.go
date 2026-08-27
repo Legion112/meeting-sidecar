@@ -78,6 +78,7 @@ func (r *Runner) Run(ctx context.Context) error {
 		if n == 0 {
 			continue
 		}
+		d.HUD.PushAudio(frame[:n])
 		for _, u := range d.Segmenter.Push(frame[:n]) {
 			r.handleOrWarn(ctx, u.PCM)
 		}

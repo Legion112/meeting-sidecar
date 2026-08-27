@@ -110,7 +110,7 @@ Copy [`config.example.yaml`](config.example.yaml) to `config.yaml` (gitignored).
 
 Important fields:
 
-- `audio.monitor`: empty → `default_sink + ".monitor"`; must end with `.monitor` (mics rejected)
+- `audio.monitor`: empty → `default_sink + ".monitor"`; `all` → every playback sink (mixed, hotplug rescan); or one explicit `.monitor` name (mics rejected)
 - `stt.model_path`: empty → `~/.local/share/meeting-sidecar/models/ggml-small.bin`
 - `detect.ollama.model`: small local classifier
 - `llm.provider`: `openai` (default) or `ollama`
@@ -172,6 +172,22 @@ go tool cover -func=cover.out
 Target: **100% statement coverage** of `internal/...` packages.
 
 ## PipeWire notes (this host)
+
+List playback sinks and monitor source names:
+
+```text
+make list-monitors
+# or: ./meeting-sidecar -list-monitors
+```
+
+To capture **all outputs** (speakers + Bluetooth headphones, including devices plugged in mid-meeting), set in `config.yaml`:
+
+```yaml
+audio:
+  monitor: all
+```
+
+The app mixes every sink `.monitor` into one stream and rescans every ~2s for new sinks.
 
 Default playback sink monitor looks like:
 

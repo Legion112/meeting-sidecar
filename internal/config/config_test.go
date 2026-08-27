@@ -97,6 +97,20 @@ func TestLoadInvalidYAML(t *testing.T) {
 	}
 }
 
+func TestLoadMonitorAll(t *testing.T) {
+	path := filepath.Join(t.TempDir(), "all.yaml")
+	if err := os.WriteFile(path, []byte("audio:\n  monitor: all\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cfg, err := config.Load(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if cfg.Audio.Monitor != "all" {
+		t.Fatal(cfg.Audio.Monitor)
+	}
+}
+
 func TestValidateProviders(t *testing.T) {
 	cfg := config.Default()
 	cfg.STT.Provider = "openai"

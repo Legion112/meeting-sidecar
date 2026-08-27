@@ -1,5 +1,6 @@
  audio:
-  # Empty = default Pulse sink + ".monitor" (playback only; never a microphone).
+  # Empty = default sink + ".monitor" (playback only; never a microphone).
+  # all = every playback sink monitor, mixed; rescans for new headphones.
   monitor: ""
   sample_rate: 16000
 

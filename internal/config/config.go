@@ -168,8 +168,8 @@ func (c *Config) applyDefaults() {
 // Validate checks configuration constraints.
 func (c Config) Validate() error {
 	mon := strings.TrimSpace(c.Audio.Monitor)
-	if mon != "" && !IsMonitorName(mon) {
-		return fmt.Errorf("audio.monitor %q is not a playback monitor (must end with .monitor)", mon)
+	if mon != "" && !strings.EqualFold(mon, "all") && !IsMonitorName(mon) {
+		return fmt.Errorf("audio.monitor %q is not a playback monitor (must end with .monitor or be \"all\")", mon)
 	}
 	switch strings.ToLower(strings.TrimSpace(c.STT.Provider)) {
 	case "", "whisper":
