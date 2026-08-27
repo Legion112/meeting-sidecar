@@ -19,8 +19,10 @@ export CGO_ENABLED     := 1
 GO       ?= go
 BIN      ?= meeting-sidecar
 PKG      ?= ./cmd/meeting-sidecar
-EXTLD    := -lggml-cuda -lcudart -lcublas -lcuda -lculibos
-LDFLAGS  := -ldflags "-extldflags '$(EXTLD)'"
+CUDA_LIB64   := $(CUDA_HOME)/lib64
+CUDA_TARGET  := $(CUDA_HOME)/targets/x86_64-linux/lib
+EXTLD        := -Wl,-rpath,$(CUDA_LIB64) -Wl,-rpath,$(CUDA_TARGET) -lggml-cuda -lcudart -lcublas -lcuda -lculibos
+LDFLAGS      := -ldflags "-extldflags '$(EXTLD)'"
 
 .PHONY: all build test run clean check-deps
 

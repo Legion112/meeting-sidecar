@@ -117,19 +117,40 @@ Important fields:
 - `llm.openai.model`: default `gpt-5.6-luna`
 - `assistant.system_prompt`: omit to use the baked-in short speakable-cue prompt
 
+### Local-only (no OpenAI)
+
+To run without an OpenAI API key, set answers to Ollama in `config.yaml`:
+
+```yaml
+llm:
+  provider: ollama
+  ollama:
+    base_url: http://127.0.0.1:11434
+    model: llama3.2
+```
+
+The question gate already uses Ollama (`detect.ollama.model`, default `qwen2.5:0.5b`). Pull both models once:
+
+```text
+ollama pull qwen2.5:0.5b
+ollama pull llama3.2
+```
+
+No `OPENAI_API_KEY` is required for this setup.
+
 ## Run
 
-Preferred (sets CUDA / whisper.cpp link env automatically):
+Preferred (sets CUDA / whisper.cpp link env automatically; embeds CUDA rpath so `./meeting-sidecar` runs without `LD_LIBRARY_PATH`):
 
 ```text
 make
 ./meeting-sidecar -config config.yaml
 ```
 
-Or with the CUDA Whisper env above:
+Or with the CUDA Whisper env above (add `-Wl,-rpath,...` if running the binary outside `make`):
 
 ```text
-go build -ldflags "-extldflags '-lggml-cuda -lcudart -lcublas -lcuda -lculibos'" \
+go build -ldflags "-extldflags '-Wl,-rpath,\$$HOME/sdk/cuda-13.0/lib64 -Wl,-rpath,\$$HOME/sdk/cuda-13.0/targets/x86_64-linux/lib -lggml-cuda -lcudart -lcublas -lcuda -lculibos'" \
   -o meeting-sidecar ./cmd/meeting-sidecar
 ./meeting-sidecar -config config.yaml
 ```
