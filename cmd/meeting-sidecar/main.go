@@ -77,7 +77,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "audio open: %v\n", err)
 		os.Exit(1)
 	}
-	defer src.Close()
+
+	micSource, err := audio.ResolveMicrophone(cfg.Audio.MicrophoneSource, pq)
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "microphone: %v\n", err)
+		os.Exit(1)
+	}
+	micMixer, err := audio.NewMicMixer(src, factory, micSource, cfg.Audio.SampleRate, slog.Default())
+	if err != nil {
+		fmt.Fprintf(os.Stderr, "mic mixer: %v\n", err)
+		os.Exit(1)
+	}
+	defer micMixer.Close()
+	if err := micMixer.SetMicEnabled(cfg.MicEnabled()); err != nil {
+		fmt.Fprintf(os.Stderr, "microphone: %v\n", err)
+		os.Exit(1)
+	}
 
 	ctx := context.Background()
 	tr, err := app.NewWhisperTranscriber(ctx, cfg, nil, nil)
@@ -108,10 +123,22 @@ func main() {
 		fmt.Fprintf(os.Stderr, "ui: %v\n", err)
 		os.Exit(1)
 	}
+	hud.BindMicCapture(cfg.MicEnabled(), func(on bool) {
+		if err := micMixer.SetMicEnabled(on); err != nil {
+			slog.Warn("microphone toggle", "enabled", on, "err", err)
+			hud.SetStatus("microphone error: " + err.Error())
+		} else if on {
+			slog.Info("microphone capture enabled", "source", micSource)
+			hud.SetStatus("listening (playback + mic)")
+		} else {
+			slog.Info("microphone capture disabled")
+			hud.SetStatus("listening")
+		}
+	})
 
 	if err := app.Run(ctx, app.Deps{
 		Config:      cfg,
-		Source:      src,
+		Source:      micMixer,
 		Transcriber: tr,
 		Gate:        gate,
 		Completer:   completer,
@@ -145,6 +172,14 @@ func (q pulseQuerier) DefaultSink() (string, error) {
 		return "", err
 	}
 	return sink.ID(), nil
+}
+
+func (q pulseQuerier) DefaultSource() (string, error) {
+	src, err := q.client.DefaultSource()
+	if err != nil {
+		return "", err
+	}
+	return src.ID(), nil
 }
 
 func (q pulseQuerier) ListPlaybackMonitors() ([]audio.MonitorDevice, error) {

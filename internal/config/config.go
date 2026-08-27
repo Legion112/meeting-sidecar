@@ -30,9 +30,11 @@ type Config struct {
 }
 
 type AudioConfig struct {
-	Monitor    string    `yaml:"monitor"`
-	SampleRate int       `yaml:"sample_rate"`
-	VAD        VADConfig `yaml:"vad"`
+	Monitor          string    `yaml:"monitor"`
+	Microphone       bool      `yaml:"microphone"`
+	MicrophoneSource string    `yaml:"microphone_source"`
+	SampleRate       int       `yaml:"sample_rate"`
+	VAD              VADConfig `yaml:"vad"`
 }
 
 // VADConfig overrides energy VAD defaults; zero values keep built-in defaults.
@@ -179,6 +181,11 @@ func (c *Config) applyDefaults() {
 	if strings.TrimSpace(c.Assistant.SystemPrompt) == "" {
 		c.Assistant.SystemPrompt = DefaultSystemPrompt
 	}
+}
+
+// MicEnabled reports the initial microphone capture state from config.
+func (c Config) MicEnabled() bool {
+	return c.Audio.Microphone
 }
 
 // Validate checks configuration constraints.

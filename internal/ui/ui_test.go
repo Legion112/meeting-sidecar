@@ -17,6 +17,7 @@ func TestMemoryHUD(t *testing.T) {
 	}
 	h.ShowSuggestion(ui.Suggestion{Question: "q", Answer: "a"})
 	h.AppendCaption("hello world")
+	h.BindMicCapture(false, func(on bool) { h.MicEnabled = on })
 	h.PushAudio([]int16{1, 2})
 	if h.Last.Answer != "a" {
 		t.Fatal(h.Last)
@@ -55,6 +56,7 @@ func TestFyneHUD(t *testing.T) {
 	h.SetStatus("listening")
 	h.PushAudio([]int16{100, -100, 200})
 	h.AppendCaption("Привет всем")
+	h.BindMicCapture(true, nil)
 	h.ShowSuggestion(ui.Suggestion{Question: "Q?", Answer: "A"})
 	test.Tap(h.HideBtn)
 	h.Hide()

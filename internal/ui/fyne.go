@@ -24,6 +24,7 @@ type FyneHUD struct {
 	captionLines []string
 	question  *widget.Label
 	answer    *widget.Label
+	micCheck  *widget.Check
 	HideBtn   *widget.Button
 	display   int
 	alwaysTop bool
@@ -74,11 +75,14 @@ func newFyneHUD(a fyne.App, opts FyneOptions) *FyneHUD {
 		alwaysTop: opts.AlwaysOnTop,
 	}
 	h.HideBtn = widget.NewButton("Hide", func() { h.Hide() })
+	micCheck := widget.NewCheck("Capture microphone", nil)
+	h.micCheck = micCheck
 	wave := sizedWaveformRaster(&h.waveBuf)
 	h.waveform = wave
 	w.SetContent(container.NewVBox(
 		widget.NewLabel("Meeting sidecar (private)"),
 		status,
+		micCheck,
 		widget.NewLabel("Audio level"),
 		wave,
 		widget.NewSeparator(),
@@ -163,6 +167,29 @@ func (h *FyneHUD) AppendCaption(text string) {
 		}
 		h.captions.SetText(strings.Join(h.captionLines, "\n"))
 		h.win.Show()
+	})
+}
+
+// BindMicCapture implements HUD.
+func (h *FyneHUD) BindMicCapture(initial bool, onChange func(enabled bool)) {
+	h.mu.Lock()
+	if h.closed {
+		h.mu.Unlock()
+		return
+	}
+	h.mu.Unlock()
+	fyne.Do(func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.closed || h.micCheck == nil {
+			return
+		}
+		h.micCheck.SetChecked(initial)
+		h.micCheck.OnChanged = func(checked bool) {
+			if onChange != nil {
+				onChange(checked)
+			}
+		}
 	})
 }
 

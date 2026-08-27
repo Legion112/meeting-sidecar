@@ -1,7 +1,11 @@
 audio:
-  # Empty = default sink + ".monitor" (playback only; never a microphone).
+  # Empty = default sink + ".monitor" (playback only by default).
   # all = every playback sink monitor, mixed; rescans for new headphones.
   monitor: ""
+  # Initial state of the HUD "Capture microphone" checkbox (mixes default Pulse input with playback).
+  microphone: false
+  # Empty = default Pulse input source; or an explicit source id (not .monitor).
+  microphone_source: ""
   sample_rate: 16000
   # Optional VAD overrides (omit to keep defaults: threshold 500, hangover 300 ms, min 100 ms, max 15 s).
   # vad:

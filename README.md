@@ -10,7 +10,7 @@ Private meeting assistant for Linux (GNOME/X11 + PipeWire). It listens to **meet
 
 | Stage | Where | Why |
 |---|---|---|
-| Capture | Pulse/PipeWire **sink monitor** only | Meeting questions are in playback, not your mic. v1 has **no microphone** support. |
+| Capture | Pulse/PipeWire **sink monitor** (+ optional **microphone** via HUD checkbox) | Meeting audio from playback; enable mic to also capture your voice. |
 | VAD | Local Go | Silence is discarded and **never** reaches Whisper/LLM. |
 | STT | Local Whisper (whisper.cpp) | Core transcription stays on-device. |
 | Question gate | Small Ollama model | Cheap filter so ChatGPT is not called for every sentence. |
@@ -111,6 +111,8 @@ Copy [`config.example.yaml`](config.example.yaml) to `config.yaml` (gitignored).
 Important fields:
 
 - `audio.monitor`: empty → `default_sink + ".monitor"`; `all` → every playback sink (mixed, hotplug rescan); or one explicit `.monitor` name (mics rejected)
+- `audio.microphone`: initial HUD checkbox state for mixing default Pulse input with playback
+- `audio.microphone_source`: empty → default input device; or explicit Pulse source id
 - `stt.model`: shorthand (`small`, `large-v3-turbo`, …) or path; searches `~/.local/share/meeting-sidecar/models/` then `~/github/transcription/models/`
 - `stt.model_path`: legacy explicit path when `stt.model` is empty
 - `stt.language`: Whisper language code (`ru`, `en`, `auto`); when `auto`, falls back to `assistant.language`

@@ -12,6 +12,8 @@ type HUD interface {
 	// AppendCaption adds a speech-to-text utterance to the rolling transcript.
 	AppendCaption(text string)
 	ShowSuggestion(s Suggestion)
+	// BindMicCapture wires the microphone checkbox. onChange is called when toggled.
+	BindMicCapture(initial bool, onChange func(enabled bool))
 	// PushAudio feeds captured PCM for live waveform display (may be called from any goroutine).
 	PushAudio(samples []int16)
 	Hide()

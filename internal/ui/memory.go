@@ -11,6 +11,8 @@ type MemoryHUD struct {
 	mu          sync.Mutex
 	Status      string
 	Captions    []string
+	MicEnabled  bool
+	micOnChange func(enabled bool)
 	Last        Suggestion
 	Hidden      bool
 	Closed      bool
@@ -42,6 +44,14 @@ func (h *MemoryHUD) AppendCaption(text string) {
 	}
 	h.Captions = append(h.Captions, text)
 	h.Hidden = false
+}
+
+// BindMicCapture implements HUD.
+func (h *MemoryHUD) BindMicCapture(initial bool, onChange func(enabled bool)) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.MicEnabled = initial
+	h.micOnChange = onChange
 }
 
 // ShowSuggestion implements HUD.
